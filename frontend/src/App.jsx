@@ -105,12 +105,14 @@ export default function App() {
     );
   }
 
-  // VISTA 1: Catálogo de Eventos con Secciones y Subsecciones
+  // VISTA 1: Catálogo Público
   if (!activeEvent) {
     const activeCatObj = CATEGORY_STRUCTURE.find((c) => c.name === selectedCategory);
     const subcategories = activeCatObj ? activeCatObj.subcategories : [];
 
-    const filteredEvents = events.filter((ev) => {
+    const publicEvents = events.filter((ev) => ev.isActive !== false);
+
+    const filteredEvents = publicEvents.filter((ev) => {
       if (selectedCategory === 'Todos') return true;
       if (ev.category !== selectedCategory) return false;
       if (subcategories.length > 0 && selectedSubcategory !== 'Todos') {
@@ -151,7 +153,6 @@ export default function App() {
             Selecciona una sección, elige tu evento e ingresa el PIN enviado a tu WhatsApp.
           </p>
 
-          {/* Barra Principal de Secciones */}
           <div className="flex items-center gap-2 overflow-x-auto pt-5 pb-3 no-scrollbar">
             <button
               onClick={() => handleSelectMainCategory('Todos')}
@@ -178,7 +179,6 @@ export default function App() {
             ))}
           </div>
 
-          {/* Subsecciones (Deportes -> Motociclismo, Fútbol) */}
           {subcategories.length > 0 && (
             <div className="flex items-center gap-2 overflow-x-auto pb-4">
               <span className="text-[11px] font-semibold text-slate-400 mr-1">
@@ -218,7 +218,7 @@ export default function App() {
             <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center my-4">
               <ImageIcon className="w-10 h-10 text-slate-300 mx-auto mb-3" />
               <h3 className="font-bold text-slate-800 text-sm">
-                Aún no hay eventos en{' '}
+                Aún no hay eventos disponibles en{' '}
                 {selectedSubcategory !== 'Todos' ? selectedSubcategory : selectedCategory}
               </h3>
               <p className="text-xs text-slate-500 mt-1">
@@ -319,6 +319,7 @@ export default function App() {
   }
 
   // VISTA 3: Galería de Selección del Evento
+  const isPayPerPhoto = activeEvent.includedPhotos === 0;
   const extraCount = Math.max(0, selectedIds.length - activeEvent.includedPhotos);
   const extraCost = extraCount * activeEvent.extraPhotoPrice;
   const displayedPhotos = onlySelectedFilter
@@ -363,14 +364,25 @@ export default function App() {
           {activeEvent.photos.length} fotos disponibles • Toca una foto para seleccionarla.
         </p>
 
+        {/* Banner adaptativo según si es paquete (ej. 40 fotos) o venta individual (0 incluidas) */}
         <div className="mt-4 bg-sky-50 border border-sky-100 rounded-xl p-3.5 text-xs text-slate-700 flex items-center justify-between">
-          <div>
-            <span className="font-bold text-[#0284C7]">
-              Tu paquete incluye {activeEvent.includedPhotos} fotos.
-            </span>{' '}
-            Cada foto adicional tiene un valor de{' '}
-            <span className="font-bold">{formatCOP(activeEvent.extraPhotoPrice)}</span>.
-          </div>
+          {isPayPerPhoto ? (
+            <div>
+              <span className="font-bold text-[#0284C7]">
+                Galería de selección individual.
+              </span>{' '}
+              Cada fotografía seleccionada tiene un valor de{' '}
+              <span className="font-bold">{formatCOP(activeEvent.extraPhotoPrice)}</span>.
+            </div>
+          ) : (
+            <div>
+              <span className="font-bold text-[#0284C7]">
+                Tu paquete incluye {activeEvent.includedPhotos} fotos.
+              </span>{' '}
+              Cada foto adicional tiene un valor de{' '}
+              <span className="font-bold">{formatCOP(activeEvent.extraPhotoPrice)}</span>.
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2 mt-4 mb-4">
@@ -414,23 +426,41 @@ export default function App() {
         </div>
       </main>
 
+      {/* Barra Flotante Inferior adaptativa */}
       <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-4 py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           <div>
-            <div className="text-xs font-bold text-slate-900">
-              {selectedIds.length} / {activeEvent.includedPhotos} incluidas
-              {extraCount > 0 && (
-                <span className="ml-1.5 text-amber-600 font-extrabold">
-                  (+{extraCount} extras)
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-slate-500">
-              Adicional a pagar:{' '}
-              <span className="font-bold text-[#0284C7] text-sm">
-                {formatCOP(extraCost)}
-              </span>
-            </div>
+            {isPayPerPhoto ? (
+              <>
+                <div className="text-xs font-bold text-slate-900">
+                  {selectedIds.length}{' '}
+                  {selectedIds.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}
+                </div>
+                <div className="text-xs text-slate-500">
+                  Total a pagar:{' '}
+                  <span className="font-bold text-[#0284C7] text-sm">
+                    {formatCOP(extraCost)}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-xs font-bold text-slate-900">
+                  {selectedIds.length} / {activeEvent.includedPhotos} incluidas
+                  {extraCount > 0 && (
+                    <span className="ml-1.5 text-amber-600 font-extrabold">
+                      (+{extraCount} extras)
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-slate-500">
+                  Adicional a pagar:{' '}
+                  <span className="font-bold text-[#0284C7] text-sm">
+                    {formatCOP(extraCost)}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
           <button

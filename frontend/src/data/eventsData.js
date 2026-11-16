@@ -6,7 +6,7 @@ export const STUDIO_CONFIG = {
   email: "tomaspradoph@gmail.com",
   instagram: "tomaas.621",
   instagramUrl: "https://instagram.com/tomaas.621",
-  adminPin: "admin2026",
+  adminPin: "admin2026", // Clave de acceso al Panel de Administración
 };
 
 export const CATEGORY_STRUCTURE = [
@@ -26,6 +26,7 @@ export const INITIAL_EVENTS_DATA = [
     pin: "2026",
     includedPhotos: 3, // En producción pon 40; en 3 para probar cobro extra con 5 fotos
     extraPhotoPrice: 2000,
+    isActive: true, // Controla si el evento está visible para los clientes
     watermarkText: "tomasph_photos",
     coverImage: "/demo/foto1.jpg",
     photos: [

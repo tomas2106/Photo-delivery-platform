@@ -11,6 +11,7 @@ export default function PhotoCard({
   onToggleSelect,
   onZoom,
 }) {
+  const isPayPerPhoto = includedLimit === 0;
   const isExtra = isSelected && selectionIndex >= includedLimit;
 
   return (
@@ -29,7 +30,6 @@ export default function PhotoCard({
         className="w-full h-full object-cover select-none pointer-events-none"
       />
 
-      {/* Marca de agua repetida */}
       <div className="absolute inset-0 pointer-events-none flex flex-col justify-around items-center opacity-35 rotate-[-25deg] scale-125 overflow-hidden">
         {[1, 2, 3].map((row) => (
           <span
@@ -41,10 +41,8 @@ export default function PhotoCard({
         ))}
       </div>
 
-      {/* Gradiente inferior */}
       <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/65 via-black/20 to-transparent pointer-events-none" />
 
-      {/* Check superior derecho */}
       <button
         type="button"
         aria-label="Seleccionar foto"
@@ -57,25 +55,31 @@ export default function PhotoCard({
         <Check className="w-4 h-4 stroke-[3]" />
       </button>
 
-      {/* Código y badge de estado */}
       <div className="absolute bottom-2.5 left-2.5 flex flex-col gap-1 pointer-events-none">
         <span className="text-[11px] font-medium text-white/90 drop-shadow">
           {photo.code}
         </span>
         <span
           className={`px-2 py-0.5 rounded-full text-[11px] font-bold w-fit shadow-sm ${
-            isExtra
+            isPayPerPhoto
+              ? isSelected
+                ? 'bg-[#0284C7] text-white'
+                : 'bg-black/75 text-white'
+              : isExtra
               ? 'bg-amber-500 text-white'
               : isSelected
               ? 'bg-[#0284C7] text-white'
               : 'bg-black/75 text-white'
           }`}
         >
-          {isExtra ? `+ ${formatCOP(extraPrice)}` : 'Incluida'}
+          {isPayPerPhoto
+            ? formatCOP(extraPrice)
+            : isExtra
+            ? `+ ${formatCOP(extraPrice)}`
+            : 'Incluida'}
         </span>
       </div>
 
-      {/* Botón Lupa */}
       <button
         type="button"
         onClick={(e) => {
