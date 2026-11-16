@@ -1,22 +1,19 @@
-import { Mail, Phone, Instagram } from 'lucide-react';
+import { Mail, Phone } from 'lucide-react';
 import { STUDIO_CONFIG } from '../data/eventsData';
+import StudioLogo from './StudioLogo';
 
 export default function Footer() {
   return (
     <footer className="bg-white border-t border-slate-200 mt-16">
       <div className="max-w-5xl mx-auto px-4 py-10">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-          {/* Marca en negro */}
           <div>
-            <span className="font-black text-2xl tracking-tighter text-black uppercase">
-              {STUDIO_CONFIG.name}
-            </span>
-            <p className="text-xs text-slate-500 mt-1">
+            <StudioLogo />
+            <p className="text-xs text-slate-500 mt-2">
               Fotografía Profesional • Eventos, Deportes y Sesiones Privadas
             </p>
           </div>
 
-          {/* Canales de Contacto */}
           <div className="flex flex-col sm:flex-row flex-wrap gap-4 sm:gap-6 text-xs font-medium text-slate-700">
             <a
               href={`mailto:${STUDIO_CONFIG.email}`}
@@ -47,7 +44,19 @@ export default function Footer() {
               className="flex items-center gap-2 hover:text-pink-600 transition"
             >
               <span className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-black">
-                <Instagram className="w-4 h-4" />
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                  <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+                </svg>
               </span>
               @{STUDIO_CONFIG.instagram}
             </a>

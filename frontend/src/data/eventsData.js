@@ -6,14 +6,13 @@ export const STUDIO_CONFIG = {
   email: "tomaspradoph@gmail.com",
   instagram: "tomaas.621",
   instagramUrl: "https://instagram.com/tomaas.621",
-  adminPin: "admin2026", // Clave para entrar al panel de administración
+  adminPin: "admin2026",
 };
 
-export const EVENT_CATEGORIES = [
-  "Matrimonios",
-  "Motociclismo",
-  "Fútbol",
-  "XV Años",
+export const CATEGORY_STRUCTURE = [
+  { name: "Matrimonios", subcategories: [] },
+  { name: "XV Años", subcategories: [] },
+  { name: "Deportes", subcategories: ["Motociclismo", "Fútbol"] },
 ];
 
 export const INITIAL_EVENTS_DATA = [
@@ -21,6 +20,7 @@ export const INITIAL_EVENTS_DATA = [
     id: "boda-prueba-2026",
     title: "Boda Civil y Recepción - Prueba Local",
     category: "Matrimonios",
+    subcategory: "",
     date: "16 de noviembre de 2026",
     location: "Cundinamarca, Colombia",
     pin: "2026",

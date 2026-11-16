@@ -11,18 +11,20 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { getEvents, unlockEventGallery } from './services/eventService';
-import { EVENT_CATEGORIES, STUDIO_CONFIG } from './data/eventsData';
+import { CATEGORY_STRUCTURE, STUDIO_CONFIG } from './data/eventsData';
 import { formatCOP } from './utils/formatters';
 import PhotoCard from './components/PhotoCard';
 import LightboxModal from './components/LightboxModal';
 import CheckoutDrawer from './components/CheckoutDrawer';
 import Footer from './components/Footer';
 import AdminPanel from './components/AdminPanel';
+import StudioLogo from './components/StudioLogo';
 
 export default function App() {
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
+  const [selectedSubcategory, setSelectedSubcategory] = useState('Todos');
   const [isAdminOpen, setIsAdminOpen] = useState(false);
 
   const [activeEvent, setActiveEvent] = useState(null);
@@ -65,6 +67,11 @@ export default function App() {
     }
   }, [selectedIds, activeEvent]);
 
+  const handleSelectMainCategory = (catName) => {
+    setSelectedCategory(catName);
+    setSelectedSubcategory('Todos');
+  };
+
   const handleUnlock = async (e) => {
     e.preventDefault();
     setIsUnlocking(true);
@@ -88,7 +95,6 @@ export default function App() {
     );
   };
 
-  // VISTA ADMINISTRADOR
   if (isAdminOpen) {
     return (
       <AdminPanel
@@ -99,23 +105,29 @@ export default function App() {
     );
   }
 
-  // VISTA 1: Catálogo de Eventos por Categoría
+  // VISTA 1: Catálogo de Eventos con Secciones y Subsecciones
   if (!activeEvent) {
-    const filteredEvents =
-      selectedCategory === 'Todos'
-        ? events
-        : events.filter((ev) => ev.category === selectedCategory);
+    const activeCatObj = CATEGORY_STRUCTURE.find((c) => c.name === selectedCategory);
+    const subcategories = activeCatObj ? activeCatObj.subcategories : [];
+
+    const filteredEvents = events.filter((ev) => {
+      if (selectedCategory === 'Todos') return true;
+      if (ev.category !== selectedCategory) return false;
+      if (subcategories.length > 0 && selectedSubcategory !== 'Todos') {
+        return ev.subcategory === selectedSubcategory;
+      }
+      return true;
+    });
 
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
-        {/* Header con Logo Negro TOMASPH */}
         <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
           <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
             <button
-              onClick={() => setSelectedCategory('Todos')}
-              className="font-black text-2xl tracking-tighter text-black uppercase"
+              onClick={() => handleSelectMainCategory('Todos')}
+              className="text-left focus:outline-none"
             >
-              {STUDIO_CONFIG.name}
+              <StudioLogo />
             </button>
 
             <div className="flex items-center gap-2">
@@ -136,25 +148,67 @@ export default function App() {
         <main className="max-w-5xl w-full mx-auto px-4 pt-8 flex-1">
           <h1 className="text-2xl font-bold text-slate-900">Eventos y Sesiones</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Selecciona una categoría, elige tu evento e ingresa el PIN enviado a tu WhatsApp.
+            Selecciona una sección, elige tu evento e ingresa el PIN enviado a tu WhatsApp.
           </p>
 
-          {/* Barra de Categorías (Scroll horizontal en celular) */}
-          <div className="flex items-center gap-2 overflow-x-auto py-5 no-scrollbar">
-            {['Todos', ...EVENT_CATEGORIES].map((cat) => (
+          {/* Barra Principal de Secciones */}
+          <div className="flex items-center gap-2 overflow-x-auto pt-5 pb-3 no-scrollbar">
+            <button
+              onClick={() => handleSelectMainCategory('Todos')}
+              className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition ${
+                selectedCategory === 'Todos'
+                  ? 'bg-black text-white shadow-xs'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-400'
+              }`}
+            >
+              Todos
+            </button>
+            {CATEGORY_STRUCTURE.map((cat) => (
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
+                key={cat.name}
+                onClick={() => handleSelectMainCategory(cat.name)}
                 className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition ${
-                  selectedCategory === cat
+                  selectedCategory === cat.name
                     ? 'bg-black text-white shadow-xs'
                     : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-400'
                 }`}
               >
-                {cat}
+                {cat.name}
               </button>
             ))}
           </div>
+
+          {/* Subsecciones (Deportes -> Motociclismo, Fútbol) */}
+          {subcategories.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-4">
+              <span className="text-[11px] font-semibold text-slate-400 mr-1">
+                Disciplina:
+              </span>
+              <button
+                onClick={() => setSelectedSubcategory('Todos')}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition ${
+                  selectedSubcategory === 'Todos'
+                    ? 'bg-[#0284C7] text-white'
+                    : 'bg-sky-50 text-[#0284C7] hover:bg-sky-100'
+                }`}
+              >
+                Todas en {selectedCategory}
+              </button>
+              {subcategories.map((sub) => (
+                <button
+                  key={sub}
+                  onClick={() => setSelectedSubcategory(sub)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition ${
+                    selectedSubcategory === sub
+                      ? 'bg-[#0284C7] text-white'
+                      : 'bg-sky-50 text-[#0284C7] hover:bg-sky-100'
+                  }`}
+                >
+                  {sub}
+                </button>
+              ))}
+            </div>
+          )}
 
           {loadingEvents ? (
             <div className="flex items-center justify-center py-20 text-[#0284C7]">
@@ -164,14 +218,15 @@ export default function App() {
             <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center my-4">
               <ImageIcon className="w-10 h-10 text-slate-300 mx-auto mb-3" />
               <h3 className="font-bold text-slate-800 text-sm">
-                Aún no hay eventos en {selectedCategory}
+                Aún no hay eventos en{' '}
+                {selectedSubcategory !== 'Todos' ? selectedSubcategory : selectedCategory}
               </h3>
               <p className="text-xs text-slate-500 mt-1">
                 Pronto publicaremos nuevas galerías en esta sección.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-2">
               {filteredEvents.map((ev) => (
                 <div
                   key={ev.id}
@@ -185,7 +240,7 @@ export default function App() {
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     />
                     <span className="absolute top-3 left-3 bg-white/95 text-black text-[11px] font-bold px-3 py-1 rounded-full shadow-xs">
-                      {ev.category}
+                      {ev.category} {ev.subcategory ? `• ${ev.subcategory}` : ''}
                     </span>
                     <span className="absolute top-3 right-3 bg-black/75 text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5">
                       <Lock className="w-3.5 h-3.5" /> Privado
@@ -208,7 +263,6 @@ export default function App() {
           )}
         </main>
 
-        {/* Footer de Contacto Oficial */}
         <Footer />
       </div>
     );
@@ -223,7 +277,7 @@ export default function App() {
             <Lock className="w-5 h-5" />
           </div>
           <span className="text-[11px] font-bold uppercase tracking-wider text-[#0284C7]">
-            {activeEvent.category}
+            {activeEvent.category} {activeEvent.subcategory ? `• ${activeEvent.subcategory}` : ''}
           </span>
           <h2 className="font-bold text-lg text-slate-900 mt-1">{activeEvent.title}</h2>
           <p className="text-xs text-slate-500 mt-1 mb-5">
@@ -285,9 +339,7 @@ export default function App() {
           >
             <ArrowLeft className="w-4 h-4" /> Eventos
           </button>
-          <span className="font-black text-lg tracking-tighter text-black uppercase">
-            {STUDIO_CONFIG.name}
-          </span>
+          <StudioLogo className="scale-90" />
           <button
             onClick={() => setIsCheckoutOpen(true)}
             className="relative p-2 text-black"
@@ -304,7 +356,7 @@ export default function App() {
 
       <main className="max-w-5xl mx-auto px-4 pt-5">
         <span className="text-[11px] font-bold uppercase tracking-wider text-[#0284C7]">
-          {activeEvent.category}
+          {activeEvent.category} {activeEvent.subcategory ? `• ${activeEvent.subcategory}` : ''}
         </span>
         <h1 className="text-xl font-bold text-slate-900 leading-tight">{activeEvent.title}</h1>
         <p className="text-xs text-slate-500 mt-1">

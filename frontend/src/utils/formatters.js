@@ -19,16 +19,16 @@ export const buildWhatsAppUrl = ({
   const totalAmount = extraCount * extraPrice;
   const codes = selectedPhotos.map((p) => p.code).join(', ');
 
-  const message = `Hola! 👋 Ya realicé mi selección de fotos.
+  const message = `Hola TOMASPH, ya realice mi seleccion de fotos.
 
-📸 *Evento:* ${eventTitle}
-👤 *Cliente:* ${clientName}
-🖼️ *Total seleccionadas:* ${totalSelected} fotos
-✅ *Incluidas en paquete:* ${Math.min(totalSelected, includedLimit)}
-➕ *Fotos adicionales:* ${extraCount} (${formatCOP(extraPrice)} c/u)
-💰 *Total adicional a pagar:* ${formatCOP(totalAmount)}
+*Evento:* ${eventTitle}
+*Cliente:* ${clientName}
+*Total seleccionadas:* ${totalSelected} fotos
+*Incluidas en paquete:* ${Math.min(totalSelected, includedLimit)}
+*Fotos adicionales:* ${extraCount} (${formatCOP(extraPrice)} c/u)
+*Total adicional a pagar:* ${formatCOP(totalAmount)}
 
-📋 *Códigos seleccionados:*
+*Codigos seleccionados:*
 ${codes}`;
 
   return {
