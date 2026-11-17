@@ -14,6 +14,7 @@ import {
   Check,
   X,
   Loader2,
+  UploadCloud,
 } from 'lucide-react';
 import { CATEGORY_STRUCTURE, STUDIO_CONFIG } from '../data/eventsData';
 import {
@@ -24,6 +25,18 @@ import {
 } from '../services/eventService';
 import { formatCOP } from '../utils/formatters';
 
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+// Extrae el nombre original limpio del archivo (ej. "DSC_0452.jpg" -> "DSC_0452")
+const extractCleanCode = (rawName, fallbackIndex) => {
+  if (!rawName) return `TOMASPH_${String(fallbackIndex + 1).padStart(3, '0')}`;
+  const withoutQuery = rawName.split('?')[0];
+  const fileName = withoutQuery.substring(withoutQuery.lastIndexOf('/') + 1);
+  const withoutExt = fileName.replace(/\.[^/.]+$/, '');
+  return decodeURIComponent(withoutExt) || `TOMASPH_${String(fallbackIndex + 1).padStart(3, '0')}`;
+};
+
 export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const [isAuthenticated, setIsAuthenticated] = useState(
     Boolean(sessionStorage.getItem('tomasph_admin_pin'))
@@ -32,6 +45,11 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const [authError, setAuthError] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Estado de subida masiva a Cloudinary
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [uploadedItems, setUploadedItems] = useState([]); // [{ code, url }]
 
   const [editingEventId, setEditingEventId] = useState(null);
 
@@ -51,10 +69,29 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const selectedCatObj = CATEGORY_STRUCTURE.find((c) => c.name === category);
   const availableSubcategories = selectedCatObj ? selectedCatObj.subcategories : [];
 
-  const parsedPreviewUrls = photoUrlsText
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+  // Combina fotos subidas directamente + URLs pegadas manualmente
+  const getCombinedPhotos = () => {
+    const manualLines = photoUrlsText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    const existingMap = new Map(uploadedItems.map((item) => [item.url, item.code]));
+
+    const combined = [...uploadedItems];
+    manualLines.forEach((url) => {
+      if (!existingMap.has(url)) {
+        combined.push({
+          code: extractCleanCode(url, combined.length),
+          url,
+        });
+      }
+    });
+
+    return combined;
+  };
+
+  const combinedPhotosPreview = getCombinedPhotos();
 
   const resetForm = () => {
     setEditingEventId(null);
@@ -70,6 +107,8 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     setCoverImage('');
     setIsActive(true);
     setPhotoUrlsText('');
+    setUploadedItems([]);
+    setUploadProgress({ current: 0, total: 0 });
   };
 
   const handleEditClick = (ev) => {
@@ -85,7 +124,13 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     setExtraPhotoPrice(ev.extraPhotoPrice ?? 2000);
     setCoverImage(ev.coverImage || '');
     setIsActive(ev.isActive !== false);
-    setPhotoUrlsText((ev.photos || []).map((p) => p.url).join('\n'));
+
+    const existingPhotos = (ev.photos || []).map((p, idx) => ({
+      code: p.code || extractCleanCode(p.url, idx),
+      url: p.url,
+    }));
+    setUploadedItems(existingPhotos);
+    setPhotoUrlsText('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -107,6 +152,70 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     }
   };
 
+  const handleBatchFileUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+      alert(
+        'Falta configurar VITE_CLOUDINARY_CLOUD_NAME y VITE_CLOUDINARY_UPLOAD_PRESET en las variables de entorno.'
+      );
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress({ current: 0, total: files.length });
+
+    const folderSlug = (title.trim() || 'evento-tomasph')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-');
+
+    const newlyUploaded = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const originalCode = extractCleanCode(file.name, uploadedItems.length + i);
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      formData.append('folder', `tomasph/${folderSlug}`);
+
+      try {
+        const res = await fetch(
+          `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+          {
+            method: 'POST',
+            body: formData,
+          }
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          newlyUploaded.push({
+            code: originalCode,
+            url: data.secure_url,
+          });
+        }
+      } catch (err) {
+        console.error(`Error subiendo ${file.name}:`, err);
+      }
+
+      setUploadProgress({ current: i + 1, total: files.length });
+    }
+
+    setUploadedItems((prev) => [...prev, ...newlyUploaded]);
+    setIsUploading(false);
+    e.target.value = '';
+  };
+
+  const handleRemoveSinglePhoto = (urlToRemove) => {
+    setUploadedItems((prev) => prev.filter((item) => item.url !== urlToRemove));
+    if (coverImage === urlToRemove) {
+      setCoverImage('');
+    }
+  };
+
   const handleAdminLogin = async (e) => {
     e.preventDefault();
     setIsVerifying(true);
@@ -115,7 +224,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     try {
       await verifyAdminPassword(adminPassword);
       setIsAuthenticated(true);
-      await onEventsUpdated(); // Recarga todos los eventos con permisos de Admin
+      await onEventsUpdated();
     } catch {
       setAuthError(true);
     } finally {
@@ -128,14 +237,19 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     setIsSaving(true);
 
     try {
-      const formattedPhotos = parsedPreviewUrls.map((url, idx) => {
-        const codeNum = String(idx + 1).padStart(3, '0');
-        return {
-          code: `TOMASPH_${codeNum}`,
-          url,
-          order: idx,
-        };
-      });
+      const finalList = getCombinedPhotos();
+
+      if (finalList.length === 0) {
+        alert('Agrega o sube al menos una fotografía antes de publicar el evento.');
+        setIsSaving(false);
+        return;
+      }
+
+      const formattedPhotos = finalList.map((item, idx) => ({
+        code: item.code,
+        url: item.url,
+        order: idx,
+      }));
 
       const finalCover =
         coverImage.trim() ||
@@ -343,9 +457,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                   type="button"
                   onClick={() => setRequiresPin(!requiresPin)}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition ${
-                    requiresPin
-                      ? 'bg-black text-white'
-                      : 'bg-[#0284C7] text-white'
+                    requiresPin ? 'bg-black text-white' : 'bg-[#0284C7] text-white'
                   }`}
                 >
                   {requiresPin ? (
@@ -452,83 +564,148 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                 type="button"
                 onClick={() => setIsActive(!isActive)}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition ${
-                  isActive
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-300 text-slate-700'
+                  isActive ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
                 }`}
               >
                 {isActive ? 'Habilitado' : 'Inhabilitado'}
               </button>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                <ImagePlus className="w-4 h-4 text-[#0284C7]" />
-                URLs de las fotos del evento (una por línea) *
-              </label>
-              <textarea
-                rows="4"
-                required
-                placeholder={`https://res.cloudinary.com/.../foto1.jpg\nhttps://res.cloudinary.com/.../foto2.jpg`}
-                value={photoUrlsText}
-                onChange={(e) => setPhotoUrlsText(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-mono focus:outline-none focus:border-[#0284C7]"
-              />
-            </div>
+            {/* SUBIDA MASIVA DIRECTA DESDE PC/CELULAR CONSERVANDO NOMBRE ORIGINAL */}
+            <div className="bg-sky-50/70 border-2 border-dashed border-sky-300 rounded-2xl p-4 text-center">
+              <UploadCloud className="w-8 h-8 text-[#0284C7] mx-auto mb-1.5" />
+              <p className="text-xs font-bold text-slate-800">
+                Subir todas las fotos en lote desde tu dispositivo
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5 mb-3">
+                Conserva automáticamente el nombre original de cada foto (ej. DSC_0124)
+              </p>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Foto de Portada (URL o elige una miniatura abajo)
+              <label
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white cursor-pointer transition ${
+                  isUploading
+                    ? 'bg-slate-400 pointer-events-none'
+                    : 'bg-[#0284C7] hover:bg-[#0369A1]'
+                }`}
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Subiendo {uploadProgress.current} de {uploadProgress.total}...
+                  </>
+                ) : (
+                  <>
+                    <ImagePlus className="w-4 h-4" />
+                    Seleccionar Fotos (Múltiple)
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  disabled={isUploading}
+                  onChange={handleBatchFileUpload}
+                  className="hidden"
+                />
               </label>
-              <input
-                type="text"
-                placeholder="https://... (si se deja vacío usa la primera foto)"
-                value={coverImage}
-                onChange={(e) => setCoverImage(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-[#0284C7]"
-              />
 
-              {parsedPreviewUrls.length > 0 && (
-                <div className="mt-2.5">
-                  <p className="text-[11px] text-slate-500 mb-1.5">
-                    Toca una foto para asignarla como portada del evento:
-                  </p>
-                  <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                    {parsedPreviewUrls.slice(0, 12).map((url, i) => {
-                      const isCurrentCover =
-                        coverImage === url || (!coverImage && i === 0);
-                      return (
+              {uploadedItems.length > 0 && (
+                <div className="mt-4 text-left">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 mb-2">
+                    <span>Fotos cargadas ({uploadedItems.length}):</span>
+                    <button
+                      type="button"
+                      onClick={() => setUploadedItems([])}
+                      className="text-red-600 hover:underline"
+                    >
+                      Quitar todas
+                    </button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-2 pr-1">
+                    {uploadedItems.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1.5 text-[11px]"
+                      >
+                        <img
+                          src={item.url}
+                          alt={item.code}
+                          className="w-8 h-8 rounded object-cover shrink-0"
+                        />
+                        <span className="font-mono font-semibold text-slate-700 truncate flex-1">
+                          {item.code}
+                        </span>
                         <button
-                          key={i}
                           type="button"
-                          onClick={() => setCoverImage(url)}
-                          className={`relative w-14 h-14 rounded-lg overflow-hidden shrink-0 border-2 transition ${
-                            isCurrentCover
-                              ? 'border-[#0284C7] scale-105 shadow-xs'
-                              : 'border-transparent opacity-70 hover:opacity-100'
-                          }`}
+                          onClick={() => handleRemoveSinglePhoto(item.url)}
+                          className="text-slate-400 hover:text-red-600 p-0.5"
+                          title="Quitar foto"
                         >
-                          <img
-                            src={url}
-                            alt={`Miniatura ${i + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                          {isCurrentCover && (
-                            <span className="absolute bottom-0.5 right-0.5 bg-[#0284C7] text-white rounded-full p-0.5">
-                              <Check className="w-2.5 h-2.5" />
-                            </span>
-                          )}
+                          <X className="w-3.5 h-3.5" />
                         </button>
-                      );
-                    })}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
             </div>
 
+            {/* Opción alternativa: pegar URLs manualmente */}
+            <details className="text-xs text-slate-500">
+              <summary className="cursor-pointer font-semibold hover:text-slate-800">
+                ¿Prefieres pegar enlaces URL manualmente? (Opcional)
+              </summary>
+              <textarea
+                rows="3"
+                placeholder={`https://res.cloudinary.com/.../DSC_001.jpg\nhttps://res.cloudinary.com/.../DSC_002.jpg`}
+                value={photoUrlsText}
+                onChange={(e) => setPhotoUrlsText(e.target.value)}
+                className="mt-2 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-mono focus:outline-none focus:border-[#0284C7]"
+              />
+            </details>
+
+            {/* Selección visual de portada */}
+            {combinedPhotosPreview.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-700 mb-1.5">
+                  Toca una foto para asignarla como portada del evento:
+                </p>
+                <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                  {combinedPhotosPreview.slice(0, 15).map((item, i) => {
+                    const isCurrentCover =
+                      coverImage === item.url || (!coverImage && i === 0);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setCoverImage(item.url)}
+                        title={item.code}
+                        className={`relative w-14 h-14 rounded-lg overflow-hidden shrink-0 border-2 transition ${
+                          isCurrentCover
+                            ? 'border-[#0284C7] scale-105 shadow-xs'
+                            : 'border-transparent opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <img
+                          src={item.url}
+                          alt={item.code}
+                          className="w-full h-full object-cover"
+                        />
+                        {isCurrentCover && (
+                          <span className="absolute bottom-0.5 right-0.5 bg-[#0284C7] text-white rounded-full p-0.5">
+                            <Check className="w-2.5 h-2.5" />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || isUploading}
               className={`w-full py-3.5 rounded-xl text-white font-bold transition shadow-sm flex items-center justify-center gap-2 ${
                 editingEventId
                   ? 'bg-amber-600 hover:bg-amber-700'
