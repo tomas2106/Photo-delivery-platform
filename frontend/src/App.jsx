@@ -84,7 +84,7 @@ export default function App() {
     setPinInput('');
     setPinError('');
     setActiveEvent(ev);
-    if (ev.requiresPin === false || !ev.pin) {
+    if (ev.requiresPin === false) {
       setUnlockedEvents((prev) => ({ ...prev, [ev.id]: true }));
     }
   };
@@ -303,7 +303,7 @@ export default function App() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-3">
               {filteredEvents.map((ev) => {
-                const isPrivate = ev.requiresPin !== false && Boolean(ev.pin);
+                const isPrivate = ev.requiresPin !== false;
                 const dateBadge = parseEventDateBadge(ev.date);
                 const tagLabel = ev.subcategory || ev.category;
 
