@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Plus,
   Trash2,
@@ -27,8 +27,8 @@ import { formatCOP } from '../utils/formatters';
 
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos de inactividad
 
-// Extrae el nombre original limpio del archivo (ej. "DSC_0452.jpg" -> "DSC_0452")
 const extractCleanCode = (rawName, fallbackIndex) => {
   if (!rawName) return `TOMASPH_${String(fallbackIndex + 1).padStart(3, '0')}`;
   const withoutQuery = rawName.split('?')[0];
@@ -49,7 +49,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   // Estado de subida masiva a Cloudinary
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
-  const [uploadedItems, setUploadedItems] = useState([]); // [{ code, url }]
+  const [uploadedItems, setUploadedItems] = useState([]);
 
   const [editingEventId, setEditingEventId] = useState(null);
 
@@ -66,10 +66,44 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const [isActive, setIsActive] = useState(true);
   const [photoUrlsText, setPhotoUrlsText] = useState('');
 
+  // Cierra la sesión administrativa limpiando el token temporal
+  const handleLogout = useCallback(() => {
+    sessionStorage.removeItem('tomasph_admin_pin');
+    setIsAuthenticated(false);
+    setAdminPassword('');
+  }, []);
+
+  // Cierra sesión y regresa a la página principal
+  const handleExitToPublic = () => {
+    handleLogout();
+    onClose();
+  };
+
+  // Temporizador de cierre de sesión por inactividad (10 minutos)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let timeoutId;
+    const resetTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        handleLogout();
+      }, INACTIVITY_TIMEOUT_MS);
+    };
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    activityEvents.forEach((evt) => window.addEventListener(evt, resetTimer, { passive: true }));
+    resetTimer();
+
+    return () => {
+      clearTimeout(timeoutId);
+      activityEvents.forEach((evt) => window.removeEventListener(evt, resetTimer));
+    };
+  }, [isAuthenticated, handleLogout]);
+
   const selectedCatObj = CATEGORY_STRUCTURE.find((c) => c.name === category);
   const availableSubcategories = selectedCatObj ? selectedCatObj.subcategories : [];
 
-  // Combina fotos subidas directamente + URLs pegadas manualmente
   const getCombinedPhotos = () => {
     const manualLines = photoUrlsText
       .split('\n')
@@ -337,7 +371,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
             </button>
           </form>
           <button
-            onClick={onClose}
+            onClick={handleExitToPublic}
             className="mt-4 text-xs text-slate-500 hover:text-black inline-flex items-center gap-1"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Volver a la galería pública
@@ -356,7 +390,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
             <span>ADMIN • {STUDIO_CONFIG.name}</span>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleExitToPublic}
             className="text-xs font-semibold bg-black hover:bg-slate-800 text-white px-4 py-2 rounded-xl flex items-center gap-1.5 transition"
           >
             <ArrowLeft className="w-4 h-4" /> Ver Página Principal
@@ -571,7 +605,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
               </button>
             </div>
 
-            {/* SUBIDA MASIVA DIRECTA DESDE PC/CELULAR CONSERVANDO NOMBRE ORIGINAL */}
             <div className="bg-sky-50/70 border-2 border-dashed border-sky-300 rounded-2xl p-4 text-center">
               <UploadCloud className="w-8 h-8 text-[#0284C7] mx-auto mb-1.5" />
               <p className="text-xs font-bold text-slate-800">
@@ -650,7 +683,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
               )}
             </div>
 
-            {/* Opción alternativa: pegar URLs manualmente */}
             <details className="text-xs text-slate-500">
               <summary className="cursor-pointer font-semibold hover:text-slate-800">
                 ¿Prefieres pegar enlaces URL manualmente? (Opcional)
@@ -664,7 +696,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
               />
             </details>
 
-            {/* Selección visual de portada */}
             {combinedPhotosPreview.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-slate-700 mb-1.5">

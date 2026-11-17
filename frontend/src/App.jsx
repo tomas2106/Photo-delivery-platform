@@ -12,6 +12,7 @@ import {
   Image as ImageIcon,
   Search,
   X,
+  ShieldAlert,
 } from 'lucide-react';
 import { getEvents, unlockEventGallery } from './services/eventService';
 import { CATEGORY_STRUCTURE, STUDIO_CONFIG } from './data/eventsData';
@@ -41,6 +42,9 @@ export default function App() {
   const [zoomPhotoIndex, setZoomPhotoIndex] = useState(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
+  // Escudo visual ante pérdida de foco o intento de captura (PrintScreen)
+  const [isPrivacyShieldActive, setIsPrivacyShieldActive] = useState(false);
+
   const loadEvents = async () => {
     setLoadingEvents(true);
     try {
@@ -56,6 +60,50 @@ export default function App() {
   useEffect(() => {
     loadEvents();
   }, []);
+
+  // Protección disuasoria contra capturas de pantalla, impresión y guardado dentro de galerías abiertas
+  useEffect(() => {
+    if (!activeEvent || !unlockedEvents[activeEvent.id]) {
+      setIsPrivacyShieldActive(false);
+      return;
+    }
+
+    const handleKeyUp = (e) => {
+      if (e.key === 'PrintScreen') {
+        setIsPrivacyShieldActive(true);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText('').catch(() => {});
+        }
+        setTimeout(() => setIsPrivacyShieldActive(false), 2500);
+      }
+    };
+
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'u'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+      }
+    };
+
+    const handleWindowBlur = () => setIsPrivacyShieldActive(true);
+    const handleWindowFocus = () => setIsPrivacyShieldActive(false);
+    const handleVisibilityChange = () => {
+      setIsPrivacyShieldActive(document.hidden);
+    };
+
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [activeEvent, unlockedEvents]);
 
   useEffect(() => {
     if (activeEvent) {
@@ -85,8 +133,21 @@ export default function App() {
     setPinError('');
     setActiveEvent(ev);
     if (ev.requiresPin === false) {
-      setUnlockedEvents((prev) => ({ ...prev, [ev.id]: true }));
+      setUnlockedEvents({ [ev.id]: true });
+    } else {
+      setUnlockedEvents({});
     }
+  };
+
+  // Cierra la galería y revoca el desbloqueo para volver a exigir PIN al reingresar
+  const handleCloseEvent = () => {
+    setActiveEvent(null);
+    setUnlockedEvents({});
+    setPinInput('');
+    setPinError('');
+    setZoomPhotoIndex(null);
+    setIsCheckoutOpen(false);
+    setIsPrivacyShieldActive(false);
   };
 
   const handleUnlock = async (e) => {
@@ -97,7 +158,7 @@ export default function App() {
     try {
       const fullEventData = await unlockEventGallery(activeEvent.id, pinInput);
       setActiveEvent(fullEventData);
-      setUnlockedEvents((prev) => ({ ...prev, [activeEvent.id]: true }));
+      setUnlockedEvents({ [activeEvent.id]: true });
       setPinInput('');
     } catch (err) {
       setPinError(err.message || 'PIN incorrecto. Verifica el código enviado por el fotógrafo.');
@@ -194,7 +255,6 @@ export default function App() {
               </p>
             </div>
 
-            {/* Buscador por nombre o fecha */}
             <div className="relative w-full md:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
@@ -217,7 +277,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Barra Principal de Secciones */}
           <div className="flex items-center gap-2 overflow-x-auto pt-5 pb-3 no-scrollbar">
             <button
               onClick={() => handleSelectMainCategory('Todos')}
@@ -244,7 +303,6 @@ export default function App() {
             ))}
           </div>
 
-          {/* Subsecciones (Deportes -> Motociclismo, Fútbol) */}
           {subcategories.length > 0 && (
             <div className="flex items-center gap-2 overflow-x-auto pb-4">
               <span className="text-[11px] font-semibold text-slate-400 mr-1">
@@ -311,19 +369,18 @@ export default function App() {
                   <div
                     key={ev.id}
                     onClick={() => handleOpenEvent(ev)}
+                    onContextMenu={(e) => e.preventDefault()}
                     className="relative rounded-3xl overflow-hidden bg-zinc-950 aspect-[3/4] border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group select-none"
                   >
-                    {/* Imagen de portada */}
                     <img
                       src={ev.coverImage}
                       alt={ev.title}
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                      draggable={false}
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500 pointer-events-none"
                     />
 
-                    {/* Degradado negro carbón */}
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-black/20" />
 
-                    {/* Barra superior: Sello de Fecha Apilado con Acento Celeste + Estado */}
                     <div className="absolute top-4 inset-x-4 flex items-start justify-between gap-2">
                       <div className="bg-zinc-950/85 backdrop-blur-md border border-white/15 border-l-4 border-l-[#0284C7] rounded-r-xl rounded-l-sm px-3 py-1.5 text-white shadow-lg">
                         <div className="text-xl font-black leading-none tracking-tight">
@@ -345,7 +402,6 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* Contenido editorial inferior */}
                     <div className="absolute inset-x-0 bottom-0 p-5 flex flex-col justify-end text-white">
                       <span className="text-[11px] font-extrabold uppercase tracking-widest text-sky-400 mb-1">
                         {tagLabel}
@@ -360,7 +416,6 @@ export default function App() {
                         <span className="truncate">{ev.location}</span>
                       </div>
 
-                      {/* Separador + Modalidad y Botón Abrir */}
                       <div className="mt-4 pt-3.5 border-t border-white/15 flex items-center justify-between gap-3">
                         <div className="text-xs">
                           {ev.includedPhotos === 0 ? (
@@ -438,11 +493,7 @@ export default function App() {
           </form>
 
           <button
-            onClick={() => {
-              setActiveEvent(null);
-              setPinError('');
-              setPinInput('');
-            }}
+            onClick={handleCloseEvent}
             className="mt-4 text-xs text-slate-500 hover:text-black inline-flex items-center gap-1"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Volver a eventos
@@ -465,11 +516,25 @@ export default function App() {
     .filter(Boolean);
 
   return (
-    <div className="min-h-screen bg-white pb-28">
+    <div
+      onContextMenu={(e) => e.preventDefault()}
+      className="min-h-screen bg-white pb-28 select-none relative"
+    >
+      {/* Escudo de privacidad cuando pierde el foco o detecta PrintScreen */}
+      {isPrivacyShieldActive && (
+        <div className="fixed inset-0 z-[100] bg-zinc-950/95 backdrop-blur-xl flex flex-col items-center justify-center text-center p-6 text-white">
+          <ShieldAlert className="w-12 h-12 text-[#0284C7] mb-3" />
+          <h3 className="text-lg font-bold">Contenido protegido por {STUDIO_CONFIG.name}</h3>
+          <p className="text-xs text-zinc-400 max-w-xs mt-1">
+            Las fotografías de muestra están protegidas contra capturas y descargas no autorizadas.
+          </p>
+        </div>
+      )}
+
       <header className="bg-white/95 backdrop-blur-xs border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <button
-            onClick={() => setActiveEvent(null)}
+            onClick={handleCloseEvent}
             className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-black"
           >
             <ArrowLeft className="w-4 h-4" /> Eventos
