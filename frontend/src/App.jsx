@@ -23,8 +23,10 @@ import CheckoutDrawer from './components/CheckoutDrawer';
 import Footer from './components/Footer';
 import AdminPanel from './components/AdminPanel';
 import StudioLogo from './components/StudioLogo';
+import HomeView from './components/HomeView';
 
 export default function App() {
+  const [currentPage, setCurrentPage] = useState('home'); // 'home' | 'gallery'
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
@@ -42,7 +44,6 @@ export default function App() {
   const [zoomPhotoIndex, setZoomPhotoIndex] = useState(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
-  // Escudo visual ante pérdida de foco o intento de captura (PrintScreen)
   const [isPrivacyShieldActive, setIsPrivacyShieldActive] = useState(false);
 
   const loadEvents = async () => {
@@ -61,7 +62,6 @@ export default function App() {
     loadEvents();
   }, []);
 
-  // Protección disuasoria contra capturas de pantalla, impresión y guardado dentro de galerías abiertas
   useEffect(() => {
     if (!activeEvent || !unlockedEvents[activeEvent.id]) {
       setIsPrivacyShieldActive(false);
@@ -139,7 +139,6 @@ export default function App() {
     }
   };
 
-  // Cierra la galería y revoca el desbloqueo para volver a exigir PIN al reingresar
   const handleCloseEvent = () => {
     setActiveEvent(null);
     setUnlockedEvents({});
@@ -148,6 +147,12 @@ export default function App() {
     setZoomPhotoIndex(null);
     setIsCheckoutOpen(false);
     setIsPrivacyShieldActive(false);
+  };
+
+  const handleNavigate = (page) => {
+    handleCloseEvent();
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleUnlock = async (e) => {
@@ -188,7 +193,72 @@ export default function App() {
     );
   }
 
-  // VISTA 1: Catálogo Público
+  // Barra de Navegación Compartida (Inicio + Galería de Clientes + Admin)
+  const renderNavbar = () => (
+    <header className="bg-white/95 backdrop-blur-xs border-b border-neutral-200 sticky top-0 z-30">
+      <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => handleNavigate('home')}
+          className="text-left focus:outline-none shrink-0"
+        >
+          <StudioLogo />
+        </button>
+
+        <nav className="flex items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => handleNavigate('home')}
+            className={`px-3.5 py-2 rounded-full text-xs font-bold transition ${
+              currentPage === 'home'
+                ? 'bg-neutral-900 text-white shadow-2xs'
+                : 'text-neutral-600 hover:text-neutral-950 hover:bg-neutral-100'
+            }`}
+          >
+            Inicio
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              handleSelectMainCategory('Todos');
+              setSearchQuery('');
+              handleNavigate('gallery');
+            }}
+            className={`px-3.5 py-2 rounded-full text-xs font-bold transition ${
+              currentPage === 'gallery'
+                ? 'bg-amber-600 text-white shadow-2xs'
+                : 'bg-neutral-100 text-neutral-800 hover:bg-neutral-200'
+            }`}
+          >
+            Galería de Clientes
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsAdminOpen(true)}
+            title="Panel de Administración"
+            className="p-2 rounded-full text-neutral-500 hover:text-neutral-950 hover:bg-neutral-100 transition"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+        </nav>
+      </div>
+    </header>
+  );
+
+  // VISTA 0: Página de Inicio / Portafolio
+  if (currentPage === 'home' && !activeEvent) {
+    return (
+      <div className="min-h-screen bg-[#FAFAFA] text-neutral-900 flex flex-col">
+        {renderNavbar()}
+        <HomeView onGoToGallery={() => handleNavigate('gallery')} />
+        <Footer />
+      </div>
+    );
+  }
+
+  // VISTA 1: Catálogo Público de Eventos y Sesiones
   if (!activeEvent) {
     const activeCatObj = CATEGORY_STRUCTURE.find((c) => c.name === selectedCategory);
     const subcategories = activeCatObj ? activeCatObj.subcategories : [];
@@ -218,58 +288,33 @@ export default function App() {
     });
 
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
-        <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-          <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-            <button
-              onClick={() => {
-                handleSelectMainCategory('Todos');
-                setSearchQuery('');
-              }}
-              className="text-left focus:outline-none"
-            >
-              <StudioLogo />
-            </button>
-
-            <div className="flex items-center gap-2">
-              <span className="hidden sm:inline-block text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-                Galería de Clientes
-              </span>
-              <button
-                onClick={() => setIsAdminOpen(true)}
-                title="Panel de Administración"
-                className="p-2 rounded-full text-slate-500 hover:text-black hover:bg-slate-100 transition"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </header>
+      <div className="min-h-screen bg-[#FAFAFA] text-neutral-900 flex flex-col">
+        {renderNavbar()}
 
         <main className="max-w-5xl w-full mx-auto px-4 pt-8 flex-1">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Eventos y Sesiones</h1>
-              <p className="text-sm text-slate-500 mt-1">
+              <h1 className="text-2xl font-bold text-neutral-950">Eventos y Sesiones</h1>
+              <p className="text-sm text-neutral-500 mt-1">
                 Busca tu evento por nombre o fecha y selecciona tus fotografías favoritas.
               </p>
             </div>
 
             <div className="relative w-full md:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar por nombre o fecha..."
-                className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-black transition shadow-2xs"
+                className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white border border-neutral-300 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition shadow-2xs"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
                   aria-label="Limpiar búsqueda"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-400 hover:text-black hover:bg-slate-100 transition"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 transition"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -282,8 +327,8 @@ export default function App() {
               onClick={() => handleSelectMainCategory('Todos')}
               className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition ${
                 selectedCategory === 'Todos'
-                  ? 'bg-black text-white shadow-xs'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-400'
+                  ? 'bg-neutral-900 text-white shadow-xs'
+                  : 'bg-white text-neutral-600 border border-neutral-200 hover:border-neutral-400'
               }`}
             >
               Todos
@@ -294,8 +339,8 @@ export default function App() {
                 onClick={() => handleSelectMainCategory(cat.name)}
                 className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition ${
                   selectedCategory === cat.name
-                    ? 'bg-black text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-400'
+                    ? 'bg-neutral-900 text-white shadow-xs'
+                    : 'bg-white text-neutral-600 border border-neutral-200 hover:border-neutral-400'
                 }`}
               >
                 {cat.name}
@@ -305,15 +350,15 @@ export default function App() {
 
           {subcategories.length > 0 && (
             <div className="flex items-center gap-2 overflow-x-auto pb-4">
-              <span className="text-[11px] font-semibold text-slate-400 mr-1">
+              <span className="text-[11px] font-semibold text-neutral-400 mr-1">
                 Disciplina:
               </span>
               <button
                 onClick={() => setSelectedSubcategory('Todos')}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition ${
                   selectedSubcategory === 'Todos'
-                    ? 'bg-[#0284C7] text-white'
-                    : 'bg-sky-50 text-[#0284C7] hover:bg-sky-100'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
                 }`}
               >
                 Todas en {selectedCategory}
@@ -324,8 +369,8 @@ export default function App() {
                   onClick={() => setSelectedSubcategory(sub)}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition ${
                     selectedSubcategory === sub
-                      ? 'bg-[#0284C7] text-white'
-                      : 'bg-sky-50 text-[#0284C7] hover:bg-sky-100'
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
                   }`}
                 >
                   {sub}
@@ -335,16 +380,16 @@ export default function App() {
           )}
 
           {loadingEvents ? (
-            <div className="flex items-center justify-center py-20 text-[#0284C7]">
+            <div className="flex items-center justify-center py-20 text-amber-600">
               <Loader2 className="w-8 h-8 animate-spin" />
             </div>
           ) : filteredEvents.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center my-4">
-              <ImageIcon className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <h3 className="font-bold text-slate-800 text-sm">
+            <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center my-4">
+              <ImageIcon className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
+              <h3 className="font-bold text-neutral-800 text-sm">
                 No se encontraron eventos
               </h3>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-neutral-500 mt-1">
                 {searchQuery
                   ? `No hay coincidencias para "${searchQuery}". Intenta con otro nombre o fecha.`
                   : 'Pronto publicaremos nuevas galerías en esta sección.'}
@@ -352,7 +397,7 @@ export default function App() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="mt-4 px-4 py-2 rounded-xl bg-black text-white text-xs font-bold"
+                  className="mt-4 px-4 py-2 rounded-xl bg-neutral-900 text-white text-xs font-bold"
                 >
                   Mostrar todos los eventos
                 </button>
@@ -370,7 +415,7 @@ export default function App() {
                     key={ev.id}
                     onClick={() => handleOpenEvent(ev)}
                     onContextMenu={(e) => e.preventDefault()}
-                    className="relative rounded-3xl overflow-hidden bg-zinc-950 aspect-[3/4] border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group select-none"
+                    className="relative rounded-3xl overflow-hidden bg-zinc-950 aspect-[3/4] border border-neutral-200/80 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group select-none"
                   >
                     <img
                       src={ev.coverImage}
@@ -382,11 +427,11 @@ export default function App() {
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-black/20" />
 
                     <div className="absolute top-4 inset-x-4 flex items-start justify-between gap-2">
-                      <div className="bg-zinc-950/85 backdrop-blur-md border border-white/15 border-l-4 border-l-[#0284C7] rounded-r-xl rounded-l-sm px-3 py-1.5 text-white shadow-lg">
+                      <div className="bg-zinc-950/85 backdrop-blur-md border border-white/15 border-l-4 border-l-amber-500 rounded-r-xl rounded-l-sm px-3 py-1.5 text-white shadow-lg">
                         <div className="text-xl font-black leading-none tracking-tight">
                           {dateBadge.day}
                         </div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-sky-400 mt-1 leading-none">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400 mt-1 leading-none">
                           {dateBadge.month} {dateBadge.year}
                         </div>
                       </div>
@@ -396,14 +441,14 @@ export default function App() {
                           <Lock className="w-3 h-3 text-slate-300" /> Privado
                         </span>
                       ) : (
-                        <span className="bg-emerald-500/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 shadow-xs">
+                        <span className="bg-emerald-600/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 shadow-xs">
                           <Unlock className="w-3 h-3" /> Público
                         </span>
                       )}
                     </div>
 
                     <div className="absolute inset-x-0 bottom-0 p-5 flex flex-col justify-end text-white">
-                      <span className="text-[11px] font-extrabold uppercase tracking-widest text-sky-400 mb-1">
+                      <span className="text-[11px] font-extrabold uppercase tracking-widest text-amber-400 mb-1">
                         {tagLabel}
                       </span>
 
@@ -439,7 +484,7 @@ export default function App() {
                           )}
                         </div>
 
-                        <span className="px-3.5 py-2 rounded-xl bg-white text-zinc-950 group-hover:bg-[#0284C7] group-hover:text-white font-bold text-xs inline-flex items-center gap-1 transition-colors shrink-0 shadow-sm">
+                        <span className="px-3.5 py-2 rounded-xl bg-white text-zinc-950 group-hover:bg-amber-500 group-hover:text-zinc-950 font-bold text-xs inline-flex items-center gap-1 transition-colors shrink-0 shadow-sm">
                           Abrir
                           <ArrowUpRight className="w-3.5 h-3.5" />
                         </span>
@@ -460,16 +505,16 @@ export default function App() {
   // VISTA 2: Acceso por PIN
   if (!unlockedEvents[activeEvent.id]) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="bg-white w-full max-w-sm rounded-2xl p-6 border border-slate-200 shadow-sm text-center">
-          <div className="w-12 h-12 rounded-full bg-black text-white flex items-center justify-center mx-auto mb-4">
+      <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center p-4">
+        <div className="bg-white w-full max-w-sm rounded-2xl p-6 border border-neutral-200 shadow-sm text-center">
+          <div className="w-12 h-12 rounded-full bg-neutral-900 text-white flex items-center justify-center mx-auto mb-4">
             <Lock className="w-5 h-5" />
           </div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#0284C7]">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
             {activeEvent.category} {activeEvent.subcategory ? `• ${activeEvent.subcategory}` : ''}
           </span>
-          <h2 className="font-bold text-lg text-slate-900 mt-1">{activeEvent.title}</h2>
-          <p className="text-xs text-slate-500 mt-1 mb-5">
+          <h2 className="font-bold text-lg text-neutral-950 mt-1">{activeEvent.title}</h2>
+          <p className="text-xs text-neutral-500 mt-1 mb-5">
             Ingresa el PIN de acceso para ver la galería de muestras
           </p>
 
@@ -480,13 +525,13 @@ export default function App() {
               placeholder="••••"
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
-              className="w-full text-center text-2xl tracking-[0.5em] font-bold py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-black"
+              className="w-full text-center text-2xl tracking-[0.5em] font-bold py-3 rounded-xl border border-neutral-300 focus:outline-none focus:border-neutral-900"
             />
             {pinError && <p className="text-xs text-red-600 font-medium">{pinError}</p>}
             <button
               type="submit"
               disabled={isUnlocking}
-              className="w-full py-3 rounded-xl bg-black hover:bg-slate-800 text-white font-bold text-sm transition flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm transition flex items-center justify-center gap-2"
             >
               {isUnlocking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Ingresar a la galería'}
             </button>
@@ -494,7 +539,7 @@ export default function App() {
 
           <button
             onClick={handleCloseEvent}
-            className="mt-4 text-xs text-slate-500 hover:text-black inline-flex items-center gap-1"
+            className="mt-4 text-xs text-neutral-500 hover:text-neutral-950 inline-flex items-center gap-1"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Volver a eventos
           </button>
@@ -520,10 +565,9 @@ export default function App() {
       onContextMenu={(e) => e.preventDefault()}
       className="min-h-screen bg-white pb-28 select-none relative"
     >
-      {/* Escudo de privacidad cuando pierde el foco o detecta PrintScreen */}
       {isPrivacyShieldActive && (
         <div className="fixed inset-0 z-[100] bg-zinc-950/95 backdrop-blur-xl flex flex-col items-center justify-center text-center p-6 text-white">
-          <ShieldAlert className="w-12 h-12 text-[#0284C7] mb-3" />
+          <ShieldAlert className="w-12 h-12 text-amber-500 mb-3" />
           <h3 className="text-lg font-bold">Contenido protegido por {STUDIO_CONFIG.name}</h3>
           <p className="text-xs text-zinc-400 max-w-xs mt-1">
             Las fotografías de muestra están protegidas contra capturas y descargas no autorizadas.
@@ -531,22 +575,22 @@ export default function App() {
         </div>
       )}
 
-      <header className="bg-white/95 backdrop-blur-xs border-b border-slate-200 sticky top-0 z-30">
+      <header className="bg-white/95 backdrop-blur-xs border-b border-neutral-200 sticky top-0 z-30">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <button
             onClick={handleCloseEvent}
-            className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-black"
+            className="flex items-center gap-1.5 text-sm font-semibold text-neutral-700 hover:text-neutral-950"
           >
             <ArrowLeft className="w-4 h-4" /> Eventos
           </button>
           <StudioLogo className="scale-90" />
           <button
             onClick={() => setIsCheckoutOpen(true)}
-            className="relative p-2 text-black"
+            className="relative p-2 text-neutral-950"
           >
             <ShoppingBag className="w-5 h-5" />
             {selectedIds.length > 0 && (
-              <span className="absolute top-0.5 right-0.5 bg-[#0284C7] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+              <span className="absolute top-0.5 right-0.5 bg-amber-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                 {selectedIds.length}
               </span>
             )}
@@ -555,18 +599,18 @@ export default function App() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 pt-5">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-[#0284C7]">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
           {activeEvent.category} {activeEvent.subcategory ? `• ${activeEvent.subcategory}` : ''}
         </span>
-        <h1 className="text-xl font-bold text-slate-900 leading-tight">{activeEvent.title}</h1>
-        <p className="text-xs text-slate-500 mt-1">
+        <h1 className="text-xl font-bold text-neutral-950 leading-tight">{activeEvent.title}</h1>
+        <p className="text-xs text-neutral-500 mt-1">
           Toca una fotografía para seleccionarla o usa la lupa para verla en detalle.
         </p>
 
-        <div className="mt-4 bg-sky-50 border border-sky-100 rounded-xl p-3.5 text-xs text-slate-700 flex items-center justify-between">
+        <div className="mt-4 bg-amber-50/80 border border-amber-200/80 rounded-xl p-3.5 text-xs text-neutral-700 flex items-center justify-between">
           {isPayPerPhoto ? (
             <div>
-              <span className="font-bold text-[#0284C7]">
+              <span className="font-bold text-amber-800">
                 Galería de selección individual.
               </span>{' '}
               Cada fotografía seleccionada tiene un valor de{' '}
@@ -574,7 +618,7 @@ export default function App() {
             </div>
           ) : (
             <div>
-              <span className="font-bold text-[#0284C7]">
+              <span className="font-bold text-amber-800">
                 Tu paquete incluye {activeEvent.includedPhotos} fotos.
               </span>{' '}
               Cada foto adicional tiene un valor de{' '}
@@ -589,8 +633,8 @@ export default function App() {
               onClick={() => setOnlySelectedFilter(false)}
               className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition ${
                 !onlySelectedFilter
-                  ? 'bg-black text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-neutral-900 text-white'
+                  : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
               }`}
             >
               Todas
@@ -599,8 +643,8 @@ export default function App() {
               onClick={() => setOnlySelectedFilter(true)}
               className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition ${
                 onlySelectedFilter
-                  ? 'bg-black text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-neutral-900 text-white'
+                  : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
               }`}
             >
               <Eye className="w-3.5 h-3.5" />
@@ -635,8 +679,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* Barra Flotante Inferior */}
-      <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-4 py-3">
+      <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-neutral-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-4 py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           <div
             onClick={() => selectedIds.length > 0 && setIsCheckoutOpen(true)}
@@ -644,20 +687,20 @@ export default function App() {
           >
             {isPayPerPhoto ? (
               <>
-                <div className="text-xs font-bold text-slate-900">
+                <div className="text-xs font-bold text-neutral-900">
                   {selectedIds.length}{' '}
                   {selectedIds.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-neutral-500">
                   Total a pagar:{' '}
-                  <span className="font-bold text-[#0284C7] text-sm">
+                  <span className="font-bold text-amber-700 text-sm">
                     {formatCOP(extraCost)}
                   </span>
                 </div>
               </>
             ) : (
               <>
-                <div className="text-xs font-bold text-slate-900">
+                <div className="text-xs font-bold text-neutral-900">
                   {selectedIds.length} / {activeEvent.includedPhotos} incluidas
                   {extraCount > 0 && (
                     <span className="ml-1.5 text-amber-600 font-extrabold">
@@ -665,9 +708,9 @@ export default function App() {
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-neutral-500">
                   Adicional a pagar:{' '}
-                  <span className="font-bold text-[#0284C7] text-sm">
+                  <span className="font-bold text-amber-700 text-sm">
                     {formatCOP(extraCost)}
                   </span>
                 </div>
@@ -679,7 +722,7 @@ export default function App() {
             {selectedIds.length > 0 && (
               <button
                 onClick={() => setIsCheckoutOpen(true)}
-                className="px-3.5 py-2.5 rounded-xl font-semibold text-xs text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
+                className="px-3.5 py-2.5 rounded-xl font-semibold text-xs text-neutral-700 bg-neutral-100 hover:bg-neutral-200 transition"
               >
                 Ver elegidas
               </button>
@@ -689,8 +732,8 @@ export default function App() {
               disabled={selectedIds.length === 0}
               className={`px-5 py-2.5 rounded-xl font-bold text-sm text-white transition ${
                 selectedIds.length > 0
-                  ? 'bg-[#0284C7] hover:bg-[#0369A1] shadow-sm'
-                  : 'bg-slate-300 cursor-not-allowed'
+                  ? 'bg-neutral-900 hover:bg-neutral-800 shadow-sm'
+                  : 'bg-neutral-300 cursor-not-allowed'
               }`}
             >
               Confirmar ({selectedIds.length})
