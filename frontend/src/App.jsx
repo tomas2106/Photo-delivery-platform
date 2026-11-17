@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react';
 import {
   Lock,
-  Calendar,
+  Unlock,
   MapPin,
   ShoppingBag,
   ArrowLeft,
+  ArrowUpRight,
   Eye,
   Loader2,
   Settings,
   Image as ImageIcon,
+  Search,
+  X,
 } from 'lucide-react';
 import { getEvents, unlockEventGallery } from './services/eventService';
 import { CATEGORY_STRUCTURE, STUDIO_CONFIG } from './data/eventsData';
-import { formatCOP } from './utils/formatters';
+import { formatCOP, parseEventDateBadge } from './utils/formatters';
 import PhotoCard from './components/PhotoCard';
 import LightboxModal from './components/LightboxModal';
 import CheckoutDrawer from './components/CheckoutDrawer';
@@ -25,6 +28,7 @@ export default function App() {
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [selectedSubcategory, setSelectedSubcategory] = useState('Todos');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isAdminOpen, setIsAdminOpen] = useState(false);
 
   const [activeEvent, setActiveEvent] = useState(null);
@@ -56,7 +60,11 @@ export default function App() {
   useEffect(() => {
     if (activeEvent) {
       const saved = localStorage.getItem(`selection_${activeEvent.id}`);
-      setSelectedIds(saved ? JSON.parse(saved) : []);
+      const parsedIds = saved ? JSON.parse(saved) : [];
+      const validPhotoIds = new Set(activeEvent.photos.map((p) => p.id));
+      const cleanIds = parsedIds.filter((id) => validPhotoIds.has(id));
+
+      setSelectedIds(cleanIds);
       setOnlySelectedFilter(false);
     }
   }, [activeEvent]);
@@ -70,6 +78,15 @@ export default function App() {
   const handleSelectMainCategory = (catName) => {
     setSelectedCategory(catName);
     setSelectedSubcategory('Todos');
+  };
+
+  const handleOpenEvent = (ev) => {
+    setPinInput('');
+    setPinError('');
+    setActiveEvent(ev);
+    if (ev.requiresPin === false || !ev.pin) {
+      setUnlockedEvents((prev) => ({ ...prev, [ev.id]: true }));
+    }
   };
 
   const handleUnlock = async (e) => {
@@ -95,6 +112,11 @@ export default function App() {
     );
   };
 
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+    setOnlySelectedFilter(false);
+  };
+
   if (isAdminOpen) {
     return (
       <AdminPanel
@@ -111,13 +133,26 @@ export default function App() {
     const subcategories = activeCatObj ? activeCatObj.subcategories : [];
 
     const publicEvents = events.filter((ev) => ev.isActive !== false);
+    const normalizedQuery = searchQuery.trim().toLowerCase();
 
     const filteredEvents = publicEvents.filter((ev) => {
-      if (selectedCategory === 'Todos') return true;
-      if (ev.category !== selectedCategory) return false;
-      if (subcategories.length > 0 && selectedSubcategory !== 'Todos') {
-        return ev.subcategory === selectedSubcategory;
+      if (selectedCategory !== 'Todos' && ev.category !== selectedCategory) return false;
+      if (
+        selectedCategory !== 'Todos' &&
+        subcategories.length > 0 &&
+        selectedSubcategory !== 'Todos' &&
+        ev.subcategory !== selectedSubcategory
+      ) {
+        return false;
       }
+
+      if (normalizedQuery) {
+        const matchTitle = ev.title.toLowerCase().includes(normalizedQuery);
+        const matchDate = (ev.date || '').toLowerCase().includes(normalizedQuery);
+        const matchLocation = (ev.location || '').toLowerCase().includes(normalizedQuery);
+        return matchTitle || matchDate || matchLocation;
+      }
+
       return true;
     });
 
@@ -126,7 +161,10 @@ export default function App() {
         <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
           <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
             <button
-              onClick={() => handleSelectMainCategory('Todos')}
+              onClick={() => {
+                handleSelectMainCategory('Todos');
+                setSearchQuery('');
+              }}
               className="text-left focus:outline-none"
             >
               <StudioLogo />
@@ -148,11 +186,38 @@ export default function App() {
         </header>
 
         <main className="max-w-5xl w-full mx-auto px-4 pt-8 flex-1">
-          <h1 className="text-2xl font-bold text-slate-900">Eventos y Sesiones</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Selecciona una sección, elige tu evento e ingresa el PIN enviado a tu WhatsApp.
-          </p>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Eventos y Sesiones</h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Busca tu evento por nombre o fecha y selecciona tus fotografías favoritas.
+              </p>
+            </div>
 
+            {/* Buscador por nombre o fecha */}
+            <div className="relative w-full md:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar por nombre o fecha..."
+                className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-black transition shadow-2xs"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Limpiar búsqueda"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-400 hover:text-black hover:bg-slate-100 transition"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Barra Principal de Secciones */}
           <div className="flex items-center gap-2 overflow-x-auto pt-5 pb-3 no-scrollbar">
             <button
               onClick={() => handleSelectMainCategory('Todos')}
@@ -179,6 +244,7 @@ export default function App() {
             ))}
           </div>
 
+          {/* Subsecciones (Deportes -> Motociclismo, Fútbol) */}
           {subcategories.length > 0 && (
             <div className="flex items-center gap-2 overflow-x-auto pb-4">
               <span className="text-[11px] font-semibold text-slate-400 mr-1">
@@ -218,47 +284,115 @@ export default function App() {
             <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center my-4">
               <ImageIcon className="w-10 h-10 text-slate-300 mx-auto mb-3" />
               <h3 className="font-bold text-slate-800 text-sm">
-                Aún no hay eventos disponibles en{' '}
-                {selectedSubcategory !== 'Todos' ? selectedSubcategory : selectedCategory}
+                No se encontraron eventos
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Pronto publicaremos nuevas galerías en esta sección.
+                {searchQuery
+                  ? `No hay coincidencias para "${searchQuery}". Intenta con otro nombre o fecha.`
+                  : 'Pronto publicaremos nuevas galerías en esta sección.'}
               </p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="mt-4 px-4 py-2 rounded-xl bg-black text-white text-xs font-bold"
+                >
+                  Mostrar todos los eventos
+                </button>
+              )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-2">
-              {filteredEvents.map((ev) => (
-                <div
-                  key={ev.id}
-                  onClick={() => setActiveEvent(ev)}
-                  className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xs hover:shadow-md transition cursor-pointer group"
-                >
-                  <div className="aspect-[16/10] overflow-hidden relative bg-slate-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-3">
+              {filteredEvents.map((ev) => {
+                const isPrivate = ev.requiresPin !== false && Boolean(ev.pin);
+                const dateBadge = parseEventDateBadge(ev.date);
+                const tagLabel = ev.subcategory || ev.category;
+
+                return (
+                  <div
+                    key={ev.id}
+                    onClick={() => handleOpenEvent(ev)}
+                    className="relative rounded-3xl overflow-hidden bg-zinc-950 aspect-[3/4] border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group select-none"
+                  >
+                    {/* Imagen de portada */}
                     <img
                       src={ev.coverImage}
                       alt={ev.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500"
                     />
-                    <span className="absolute top-3 left-3 bg-white/95 text-black text-[11px] font-bold px-3 py-1 rounded-full shadow-xs">
-                      {ev.category} {ev.subcategory ? `• ${ev.subcategory}` : ''}
-                    </span>
-                    <span className="absolute top-3 right-3 bg-black/75 text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5" /> Privado
-                    </span>
-                  </div>
-                  <div className="p-5">
-                    <h2 className="font-bold text-lg text-slate-900 leading-snug">{ev.title}</h2>
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 mt-3">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-[#0284C7]" /> {ev.date}
+
+                    {/* Degradado negro carbón */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-black/20" />
+
+                    {/* Barra superior: Sello de Fecha Apilado con Acento Celeste + Estado */}
+                    <div className="absolute top-4 inset-x-4 flex items-start justify-between gap-2">
+                      <div className="bg-zinc-950/85 backdrop-blur-md border border-white/15 border-l-4 border-l-[#0284C7] rounded-r-xl rounded-l-sm px-3 py-1.5 text-white shadow-lg">
+                        <div className="text-xl font-black leading-none tracking-tight">
+                          {dateBadge.day}
+                        </div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-sky-400 mt-1 leading-none">
+                          {dateBadge.month} {dateBadge.year}
+                        </div>
+                      </div>
+
+                      {isPrivate ? (
+                        <span className="bg-zinc-900/80 backdrop-blur-xs border border-white/15 text-white text-[11px] font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                          <Lock className="w-3 h-3 text-slate-300" /> Privado
+                        </span>
+                      ) : (
+                        <span className="bg-emerald-500/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 shadow-xs">
+                          <Unlock className="w-3 h-3" /> Público
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Contenido editorial inferior */}
+                    <div className="absolute inset-x-0 bottom-0 p-5 flex flex-col justify-end text-white">
+                      <span className="text-[11px] font-extrabold uppercase tracking-widest text-sky-400 mb-1">
+                        {tagLabel}
                       </span>
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-[#0284C7]" /> {ev.location}
-                      </span>
+
+                      <h2 className="font-bold text-xl leading-snug text-white line-clamp-2">
+                        {ev.title}
+                      </h2>
+
+                      <div className="flex items-center gap-1.5 text-xs text-zinc-300 mt-2">
+                        <MapPin className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                        <span className="truncate">{ev.location}</span>
+                      </div>
+
+                      {/* Separador + Modalidad y Botón Abrir */}
+                      <div className="mt-4 pt-3.5 border-t border-white/15 flex items-center justify-between gap-3">
+                        <div className="text-xs">
+                          {ev.includedPhotos === 0 ? (
+                            <>
+                              <p className="font-bold text-white">
+                                Desde {formatCOP(ev.extraPhotoPrice)}
+                              </p>
+                              <p className="text-[11px] text-zinc-400">
+                                Selección individual
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="font-bold text-white">
+                                Paquete {ev.includedPhotos} fotos
+                              </p>
+                              <p className="text-[11px] text-zinc-400">
+                                Extra {formatCOP(ev.extraPhotoPrice)} c/u
+                              </p>
+                            </>
+                          )}
+                        </div>
+
+                        <span className="px-3.5 py-2 rounded-xl bg-white text-zinc-950 group-hover:bg-[#0284C7] group-hover:text-white font-bold text-xs inline-flex items-center gap-1 transition-colors shrink-0 shadow-sm">
+                          Abrir
+                          <ArrowUpRight className="w-3.5 h-3.5" />
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </main>
@@ -361,10 +495,9 @@ export default function App() {
         </span>
         <h1 className="text-xl font-bold text-slate-900 leading-tight">{activeEvent.title}</h1>
         <p className="text-xs text-slate-500 mt-1">
-          {activeEvent.photos.length} fotos disponibles • Toca una foto para seleccionarla.
+          Toca una fotografía para seleccionarla o usa la lupa para verla en detalle.
         </p>
 
-        {/* Banner adaptativo según si es paquete (ej. 40 fotos) o venta individual (0 incluidas) */}
         <div className="mt-4 bg-sky-50 border border-sky-100 rounded-xl p-3.5 text-xs text-slate-700 flex items-center justify-between">
           {isPayPerPhoto ? (
             <div>
@@ -385,28 +518,39 @@ export default function App() {
           )}
         </div>
 
-        <div className="flex items-center gap-2 mt-4 mb-4">
-          <button
-            onClick={() => setOnlySelectedFilter(false)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition ${
-              !onlySelectedFilter
-                ? 'bg-black text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Todas ({activeEvent.photos.length})
-          </button>
-          <button
-            onClick={() => setOnlySelectedFilter(true)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition ${
-              onlySelectedFilter
-                ? 'bg-black text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            <Eye className="w-3.5 h-3.5" />
-            Seleccionadas ({selectedIds.length})
-          </button>
+        <div className="flex items-center justify-between gap-2 mt-4 mb-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setOnlySelectedFilter(false)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition ${
+                !onlySelectedFilter
+                  ? 'bg-black text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Todas
+            </button>
+            <button
+              onClick={() => setOnlySelectedFilter(true)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition ${
+                onlySelectedFilter
+                  ? 'bg-black text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Seleccionadas ({selectedIds.length})
+            </button>
+          </div>
+
+          {selectedIds.length > 0 && (
+            <button
+              onClick={handleClearSelection}
+              className="text-xs font-semibold text-red-600 hover:underline"
+            >
+              Limpiar selección
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -426,10 +570,13 @@ export default function App() {
         </div>
       </main>
 
-      {/* Barra Flotante Inferior adaptativa */}
+      {/* Barra Flotante Inferior */}
       <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-4 py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
-          <div>
+          <div
+            onClick={() => selectedIds.length > 0 && setIsCheckoutOpen(true)}
+            className={selectedIds.length > 0 ? 'cursor-pointer' : ''}
+          >
             {isPayPerPhoto ? (
               <>
                 <div className="text-xs font-bold text-slate-900">
@@ -463,17 +610,27 @@ export default function App() {
             )}
           </div>
 
-          <button
-            onClick={() => setIsCheckoutOpen(true)}
-            disabled={selectedIds.length === 0}
-            className={`px-5 py-2.5 rounded-xl font-bold text-sm text-white transition ${
-              selectedIds.length > 0
-                ? 'bg-[#0284C7] hover:bg-[#0369A1] shadow-sm'
-                : 'bg-slate-300 cursor-not-allowed'
-            }`}
-          >
-            Confirmar ({selectedIds.length})
-          </button>
+          <div className="flex items-center gap-2">
+            {selectedIds.length > 0 && (
+              <button
+                onClick={() => setIsCheckoutOpen(true)}
+                className="px-3.5 py-2.5 rounded-xl font-semibold text-xs text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
+              >
+                Ver elegidas
+              </button>
+            )}
+            <button
+              onClick={() => setIsCheckoutOpen(true)}
+              disabled={selectedIds.length === 0}
+              className={`px-5 py-2.5 rounded-xl font-bold text-sm text-white transition ${
+                selectedIds.length > 0
+                  ? 'bg-[#0284C7] hover:bg-[#0369A1] shadow-sm'
+                  : 'bg-slate-300 cursor-not-allowed'
+              }`}
+            >
+              Confirmar ({selectedIds.length})
+            </button>
+          </div>
         </div>
       </div>
 
@@ -505,6 +662,8 @@ export default function App() {
         onClose={() => setIsCheckoutOpen(false)}
         event={activeEvent}
         selectedPhotos={selectedPhotoObjects}
+        onRemovePhoto={toggleSelectPhoto}
+        onClearAll={handleClearSelection}
       />
     </div>
   );

@@ -3,6 +3,7 @@ import {
   Plus,
   Trash2,
   Lock,
+  Unlock,
   ArrowLeft,
   ImagePlus,
   KeyRound,
@@ -29,6 +30,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const [subcategory, setSubcategory] = useState('');
   const [date, setDate] = useState('');
   const [location, setLocation] = useState('');
+  const [requiresPin, setRequiresPin] = useState(true);
   const [pin, setPin] = useState('');
   const [includedPhotos, setIncludedPhotos] = useState(40);
   const [extraPhotoPrice, setExtraPhotoPrice] = useState(2000);
@@ -51,6 +53,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     setSubcategory('');
     setDate('');
     setLocation('');
+    setRequiresPin(true);
     setPin('');
     setIncludedPhotos(40);
     setExtraPhotoPrice(2000);
@@ -66,6 +69,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     setSubcategory(ev.subcategory || '');
     setDate(ev.date || '');
     setLocation(ev.location || '');
+    setRequiresPin(ev.requiresPin !== false);
     setPin(ev.pin || '');
     setIncludedPhotos(ev.includedPhotos ?? 0);
     setExtraPhotoPrice(ev.extraPhotoPrice ?? 2000);
@@ -80,14 +84,15 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     const found = CATEGORY_STRUCTURE.find((c) => c.name === newCat);
     if (found && found.subcategories.length > 0) {
       setSubcategory(found.subcategories[0]);
-      // Sugerencia automática para Deportes: 0 fotos incluidas (venta individual)
       if (newCat === 'Deportes' && !editingEventId) {
         setIncludedPhotos(0);
+        setRequiresPin(false); // Sugerencia automática: público sin PIN para deportes masivos
       }
     } else {
       setSubcategory('');
       if (!editingEventId) {
         setIncludedPhotos(40);
+        setRequiresPin(true);
       }
     }
   };
@@ -129,7 +134,8 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
       subcategory: availableSubcategories.length > 0 ? subcategory : '',
       date: date.trim() || 'Fecha por confirmar',
       location: location.trim() || 'Colombia',
-      pin: pin.trim(),
+      requiresPin,
+      pin: requiresPin ? pin.trim() : '',
       includedPhotos: parsedIncluded,
       extraPhotoPrice: parsedExtraPrice,
       isActive,
@@ -281,7 +287,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                 </select>
               </div>
 
-              {availableSubcategories.length > 0 ? (
+              {availableSubcategories.length > 0 && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Subsección de {category} *
@@ -298,7 +304,42 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                     ))}
                   </select>
                 </div>
-              ) : (
+              )}
+            </div>
+
+            {/* Control de Privacidad (Con PIN vs Público sin PIN) */}
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Privacidad de la galería</p>
+                  <p className="text-[11px] text-slate-500">
+                    {requiresPin
+                      ? 'Privado: exige PIN para ver las fotos (ideal bodas / XV)'
+                      : 'Público: acceso libre sin PIN (ideal deportes / eventos masivos)'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRequiresPin(!requiresPin)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition ${
+                    requiresPin
+                      ? 'bg-black text-white'
+                      : 'bg-[#0284C7] text-white'
+                  }`}
+                >
+                  {requiresPin ? (
+                    <>
+                      <Lock className="w-3.5 h-3.5" /> Con PIN
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="w-3.5 h-3.5" /> Sin PIN
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {requiresPin && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     PIN de Acceso para el Cliente *
@@ -307,35 +348,16 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                     <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                     <input
                       type="text"
-                      required
+                      required={requiresPin}
                       placeholder="Ej. 4589"
                       value={pin}
                       onChange={(e) => setPin(e.target.value)}
-                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#0284C7]"
+                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#0284C7]"
                     />
                   </div>
                 </div>
               )}
             </div>
-
-            {availableSubcategories.length > 0 && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  PIN de Acceso para el Cliente *
-                </label>
-                <div className="relative">
-                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej. 4589"
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value)}
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#0284C7]"
-                  />
-                </div>
-              </div>
-            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -365,7 +387,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
               </div>
             </div>
 
-            {/* Configuración del Paquete (Acepta 0 para venta individual) */}
             <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
@@ -402,7 +423,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                 <p className="text-xs font-bold text-slate-800">Estado en la página principal</p>
                 <p className="text-[11px] text-slate-500">
                   {isActive
-                    ? 'Visible para que los clientes ingresen con su PIN'
+                    ? 'Visible en el catálogo público'
                     : 'Oculto temporalmente de la galería pública'}
                 </p>
               </div>
@@ -497,7 +518,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
           </form>
         </div>
 
-        {/* Lista de Eventos Administrables */}
         <div className="lg:col-span-5 space-y-4">
           <h2 className="font-bold text-lg text-slate-900">
             Eventos Registrados ({events.length})
@@ -505,6 +525,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
 
           {events.map((ev) => {
             const activeStatus = ev.isActive !== false;
+            const hasPin = ev.requiresPin !== false && Boolean(ev.pin);
             return (
               <div
                 key={ev.id}
@@ -540,8 +561,14 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                     {ev.title}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    PIN: <span className="font-mono font-bold text-black">{ev.pin}</span> •{' '}
-                    {ev.photos.length} fotos
+                    {hasPin ? (
+                      <>
+                        PIN: <span className="font-mono font-bold text-black">{ev.pin}</span>
+                      </>
+                    ) : (
+                      <span className="font-semibold text-[#0284C7]">Público (Sin PIN)</span>
+                    )}{' '}
+                    • {ev.photos.length} fotos
                   </p>
                   <p className="text-[11px] text-slate-500">
                     {ev.includedPhotos === 0 ? (

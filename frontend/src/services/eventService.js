@@ -29,6 +29,9 @@ export const unlockEventGallery = async (eventId, pin) => {
     if (!event || event.isActive === false) {
       throw new Error('Este evento no se encuentra disponible');
     }
+    if (event.requiresPin === false || !event.pin) {
+      return event;
+    }
     if (event.pin !== pin.trim()) {
       throw new Error('PIN incorrecto');
     }
