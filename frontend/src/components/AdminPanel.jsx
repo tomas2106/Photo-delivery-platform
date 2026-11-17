@@ -13,15 +13,25 @@ import {
   EyeOff,
   Check,
   X,
+  Loader2,
 } from 'lucide-react';
 import { CATEGORY_STRUCTURE, STUDIO_CONFIG } from '../data/eventsData';
-import { createEvent, updateEvent, deleteEvent } from '../services/eventService';
+import {
+  verifyAdminPassword,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+} from '../services/eventService';
 import { formatCOP } from '../utils/formatters';
 
 export default function AdminPanel({ events, onEventsUpdated, onClose }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    Boolean(sessionStorage.getItem('tomasph_admin_pin'))
+  );
   const [adminPassword, setAdminPassword] = useState('');
   const [authError, setAuthError] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [editingEventId, setEditingEventId] = useState(null);
 
@@ -86,7 +96,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
       setSubcategory(found.subcategories[0]);
       if (newCat === 'Deportes' && !editingEventId) {
         setIncludedPhotos(0);
-        setRequiresPin(false); // Sugerencia automática: público sin PIN para deportes masivos
+        setRequiresPin(false);
       }
     } else {
       setSubcategory('');
@@ -97,64 +107,75 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     }
   };
 
-  const handleAdminLogin = (e) => {
+  const handleAdminLogin = async (e) => {
     e.preventDefault();
-    if (adminPassword === STUDIO_CONFIG.adminPin) {
+    setIsVerifying(true);
+    setAuthError(false);
+
+    try {
+      await verifyAdminPassword(adminPassword);
       setIsAuthenticated(true);
-      setAuthError(false);
-    } else {
+      await onEventsUpdated(); // Recarga todos los eventos con permisos de Admin
+    } catch {
       setAuthError(true);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
   const handleSaveEvent = async (e) => {
     e.preventDefault();
+    setIsSaving(true);
 
-    const formattedPhotos = parsedPreviewUrls.map((url, idx) => {
-      const codeNum = String(idx + 1).padStart(3, '0');
-      return {
-        id: `photo-${idx + 1}-${url.slice(-8)}`,
-        code: `TOMASPH_${codeNum}`,
-        url,
-      };
-    });
-
-    const finalCover =
-      coverImage.trim() ||
-      (formattedPhotos[0] ? formattedPhotos[0].url : '/demo/foto1.jpg');
-
-    const parsedIncluded =
-      includedPhotos === '' ? 0 : Math.max(0, Number(includedPhotos));
-    const parsedExtraPrice =
-      extraPhotoPrice === '' ? 0 : Math.max(0, Number(extraPhotoPrice));
-
-    const payload = {
-      title: title.trim(),
-      category,
-      subcategory: availableSubcategories.length > 0 ? subcategory : '',
-      date: date.trim() || 'Fecha por confirmar',
-      location: location.trim() || 'Colombia',
-      requiresPin,
-      pin: requiresPin ? pin.trim() : '',
-      includedPhotos: parsedIncluded,
-      extraPhotoPrice: parsedExtraPrice,
-      isActive,
-      watermarkText: STUDIO_CONFIG.watermark,
-      coverImage: finalCover,
-      photos: formattedPhotos,
-    };
-
-    if (editingEventId) {
-      await updateEvent(editingEventId, payload);
-    } else {
-      await createEvent({
-        id: `evt-${Date.now()}`,
-        ...payload,
+    try {
+      const formattedPhotos = parsedPreviewUrls.map((url, idx) => {
+        const codeNum = String(idx + 1).padStart(3, '0');
+        return {
+          code: `TOMASPH_${codeNum}`,
+          url,
+          order: idx,
+        };
       });
-    }
 
-    await onEventsUpdated();
-    resetForm();
+      const finalCover =
+        coverImage.trim() ||
+        (formattedPhotos[0] ? formattedPhotos[0].url : '/demo/foto1.jpg');
+
+      const parsedIncluded =
+        includedPhotos === '' ? 0 : Math.max(0, Number(includedPhotos));
+      const parsedExtraPrice =
+        extraPhotoPrice === '' ? 0 : Math.max(0, Number(extraPhotoPrice));
+
+      const payload = {
+        title: title.trim(),
+        category,
+        subcategory: availableSubcategories.length > 0 ? subcategory : '',
+        date: date.trim() || 'Fecha por confirmar',
+        location: location.trim() || 'Colombia',
+        requiresPin,
+        pin: requiresPin ? pin.trim() : '',
+        includedPhotos: parsedIncluded,
+        extraPhotoPrice: parsedExtraPrice,
+        isActive,
+        watermarkText: STUDIO_CONFIG.watermark,
+        coverImage: finalCover,
+        photos: formattedPhotos,
+      };
+
+      if (editingEventId) {
+        await updateEvent(editingEventId, payload);
+      } else {
+        await createEvent(payload);
+      }
+
+      await onEventsUpdated();
+      resetForm();
+    } catch (error) {
+      alert('Error al guardar el evento. Verifica que el servidor esté encendido.');
+      console.error(error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleToggleActive = async (ev) => {
@@ -195,9 +216,10 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
             )}
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-black hover:bg-slate-800 text-white font-bold text-sm transition"
+              disabled={isVerifying}
+              className="w-full py-3 rounded-xl bg-black hover:bg-slate-800 text-white font-bold text-sm transition flex items-center justify-center gap-2"
             >
-              Entrar al Panel
+              {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Entrar al Panel'}
             </button>
           </form>
           <button
@@ -307,7 +329,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
               )}
             </div>
 
-            {/* Control de Privacidad (Con PIN vs Público sin PIN) */}
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -507,12 +528,14 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
 
             <button
               type="submit"
-              className={`w-full py-3.5 rounded-xl text-white font-bold transition shadow-sm ${
+              disabled={isSaving}
+              className={`w-full py-3.5 rounded-xl text-white font-bold transition shadow-sm flex items-center justify-center gap-2 ${
                 editingEventId
                   ? 'bg-amber-600 hover:bg-amber-700'
                   : 'bg-[#0284C7] hover:bg-[#0369A1]'
               }`}
             >
+              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
               {editingEventId ? 'Guardar Cambios del Evento' : 'Publicar Evento'}
             </button>
           </form>
