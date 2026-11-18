@@ -61,12 +61,12 @@ export const PORTFOLIO_PHOTOS = [
     id: 'port-4',
     title: 'Adrenalina en Cada Curva',
     category: 'Motociclismo',
-    url: '/demo/foto1.jpg',
+    url: '/demo/foto4.jpg',
   },
   {
     id: 'port-5',
     title: 'El Momento Decisivo',
     category: 'Fútbol',
-    url: '/demo/foto2.jpg',
+    url: '/demo/foto5.jpg',
   },
 ];
