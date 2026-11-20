@@ -27,6 +27,7 @@ export const calculateOrderPricing = (event, totalSelectedCount) => {
   const extraPrice = event.extraPhotoPrice || 0;
   const isPayPerPhoto = includedLimit === 0;
 
+  // Cantidad de fotos que realmente tienen costo (todas si es individual, o solo las extras si hay paquete)
   const billableCount = isPayPerPhoto
     ? totalSelectedCount
     : Math.max(0, totalSelectedCount - includedLimit);
@@ -37,11 +38,12 @@ export const calculateOrderPricing = (event, totalSelectedCount) => {
   const minPhotos = event.volumeDiscountMinPhotos || 0;
   const discountPercent = event.volumeDiscountPercent || 0;
 
+  // El descuento evalúa las fotos cobrables/adicionales (billableCount), no las gratuitas del paquete
   const qualifiesForDiscount =
     discountEnabled &&
     minPhotos > 0 &&
     discountPercent > 0 &&
-    totalSelectedCount >= minPhotos &&
+    billableCount >= minPhotos &&
     subtotal > 0;
 
   const discountAmount = qualifiesForDiscount
@@ -49,9 +51,15 @@ export const calculateOrderPricing = (event, totalSelectedCount) => {
     : 0;
 
   const finalTotal = Math.max(0, subtotal - discountAmount);
+
+  // Precio unitario real con el descuento aplicado (para mostrar en miniaturas y visor)
+  const effectiveExtraPrice = qualifiesForDiscount
+    ? Math.round(extraPrice * (1 - discountPercent / 100))
+    : extraPrice;
+
   const photosNeededForDiscount =
-    discountEnabled && minPhotos > totalSelectedCount
-      ? minPhotos - totalSelectedCount
+    discountEnabled && minPhotos > billableCount
+      ? minPhotos - billableCount
       : 0;
 
   return {
@@ -64,6 +72,7 @@ export const calculateOrderPricing = (event, totalSelectedCount) => {
     qualifiesForDiscount,
     discountAmount,
     finalTotal,
+    effectiveExtraPrice,
     photosNeededForDiscount,
   };
 };

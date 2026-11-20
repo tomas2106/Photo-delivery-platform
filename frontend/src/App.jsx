@@ -254,8 +254,8 @@ export default function App() {
   }
 
   const renderNavbar = () => (
-    <header className="bg-white/95 backdrop-blur-xs border-b border-neutral-200 sticky top-0 z-30">
-      <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-2">
+    <header className="w-full bg-white/95 backdrop-blur-xs border-b border-neutral-200 sticky top-0 z-30">
+      <div className="max-w-5xl mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-1.5">
         <button
           type="button"
           onClick={() => handleNavigate('home')}
@@ -264,11 +264,11 @@ export default function App() {
           <StudioLogo />
         </button>
 
-        <nav className="flex items-center gap-1.5 sm:gap-2">
+        <nav className="flex items-center gap-1 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={() => handleNavigate('home')}
-            className={`px-3.5 py-2 rounded-full text-xs font-bold transition ${
+            className={`px-2.5 sm:px-3.5 py-2 rounded-full text-[11px] sm:text-xs font-bold transition ${
               currentPage === 'home'
                 ? 'bg-neutral-900 text-white shadow-2xs'
                 : 'text-neutral-600 hover:text-neutral-950 hover:bg-neutral-100'
@@ -284,13 +284,13 @@ export default function App() {
               setSearchQuery('');
               handleNavigate('gallery');
             }}
-            className={`px-3.5 py-2 rounded-full text-xs font-bold transition ${
+            className={`px-2.5 sm:px-3.5 py-2 rounded-full text-[11px] sm:text-xs font-bold transition whitespace-nowrap ${
               currentPage === 'gallery'
                 ? 'bg-amber-600 text-white shadow-2xs'
                 : 'bg-neutral-100 text-neutral-800 hover:bg-neutral-200'
             }`}
           >
-            Galería de Clientes
+            Galería
           </button>
 
           <button
@@ -299,17 +299,17 @@ export default function App() {
             title="Panel de Administración"
             className="p-2 rounded-full text-neutral-500 hover:text-neutral-950 hover:bg-neutral-100 transition"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </nav>
       </div>
     </header>
   );
 
-  // VISTA 0: Página de Inicio / Portafolio (Intacta)
+  // VISTA 0: Página de Inicio / Portafolio
   if (currentPage === 'home' && !activeEvent) {
     return (
-      <div className="min-h-screen bg-[#FAFAFA] text-neutral-900 flex flex-col">
+      <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#FAFAFA] text-neutral-900 flex flex-col">
         {renderNavbar()}
         <HomeView onGoToGallery={() => handleNavigate('gallery')} />
         <Footer />
@@ -351,7 +351,7 @@ export default function App() {
     const remainingEventsCount = filteredEvents.length - visibleEventsCount;
 
     return (
-      <div className="min-h-screen bg-[#FAFAFA] text-neutral-900 flex flex-col">
+      <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#FAFAFA] text-neutral-900 flex flex-col">
         {renderNavbar()}
 
         <main className="max-w-5xl w-full mx-auto px-4 pt-8 pb-12 flex-1">
@@ -412,7 +412,7 @@ export default function App() {
           </div>
 
           {subcategories.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto pb-4">
+            <div className="flex items-center gap-2 overflow-x-auto pb-4 no-scrollbar">
               <span className="text-[11px] font-semibold text-neutral-400 mr-1">
                 Disciplina:
               </span>
@@ -551,13 +551,14 @@ export default function App() {
                       </div>
 
                       <div className="absolute inset-x-0 bottom-0 p-5 flex flex-col justify-end text-white">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="text-[11px] font-extrabold uppercase tracking-widest text-amber-400">
                             {tagLabel}
                           </span>
                           {ev.volumeDiscountEnabled && ev.volumeDiscountPercent > 0 && (
                             <span className="text-[10px] font-bold bg-amber-500/20 border border-amber-400/40 text-amber-300 px-2 py-0.5 rounded-full">
-                              -{ev.volumeDiscountPercent}% x {ev.volumeDiscountMinPhotos}+ fotos
+                              -{ev.volumeDiscountPercent}% x {ev.volumeDiscountMinPhotos}+{' '}
+                              {ev.includedPhotos === 0 ? 'fotos' : 'extras'}
                             </span>
                           )}
                         </div>
@@ -635,7 +636,7 @@ export default function App() {
   // VISTA 2: Acceso por PIN
   if (!unlockedEvents[activeEvent.id]) {
     return (
-      <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#FAFAFA] flex flex-col items-center justify-center p-4">
         <div className="bg-white w-full max-w-sm rounded-2xl p-6 border border-neutral-200 shadow-sm text-center">
           <div className="w-12 h-12 rounded-full bg-neutral-900 text-white flex items-center justify-center mx-auto mb-4">
             <Lock className="w-5 h-5" />
@@ -691,7 +692,7 @@ export default function App() {
   return (
     <div
       onContextMenu={(e) => e.preventDefault()}
-      className="min-h-screen bg-white pb-28 select-none relative"
+      className="min-h-screen w-full max-w-full overflow-x-hidden bg-white pb-28 select-none relative"
     >
       {isPrivacyShieldActive && (
         <div className="fixed inset-0 z-[100] bg-zinc-950/95 backdrop-blur-xl flex flex-col items-center justify-center text-center p-6 text-white">
@@ -703,30 +704,32 @@ export default function App() {
         </div>
       )}
 
-      <header className="bg-white/95 backdrop-blur-xs border-b border-neutral-200 sticky top-0 z-30">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
+      <header className="w-full bg-white/95 backdrop-blur-xs border-b border-neutral-200 sticky top-0 z-30">
+        <div className="max-w-5xl mx-auto px-3 sm:px-4 h-14 flex items-center justify-between gap-2">
           <button
             onClick={handleCloseEvent}
-            className="flex items-center gap-1.5 text-sm font-semibold text-neutral-700 hover:text-neutral-950"
+            className="flex items-center gap-1 text-xs sm:text-sm font-semibold text-neutral-700 hover:text-neutral-950 shrink-0"
           >
             <ArrowLeft className="w-4 h-4" /> Eventos
           </button>
 
           <StudioLogo className="scale-90" />
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={(e) => handleShareEventLink(e, activeEvent)}
-              className="px-2.5 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-bold inline-flex items-center gap-1 transition"
+              className="px-2 sm:px-2.5 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-bold inline-flex items-center gap-1 transition"
             >
               {copiedEventId === activeEvent.id ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-600" /> Copiado
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="hidden sm:inline">Copiado</span>
                 </>
               ) : (
                 <>
-                  <Share2 className="w-3.5 h-3.5" /> Compartir
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Compartir</span>
                 </>
               )}
             </button>
@@ -778,8 +781,12 @@ export default function App() {
             <div className="flex items-center gap-1.5 text-emerald-800 font-semibold pt-1 border-t border-amber-200/60">
               <Tag className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
               <span>
-                Promoción activa: Lleva {pricing.minPhotos} o más fotos y obtén{' '}
-                {pricing.discountPercent}% de descuento automático.
+                Promoción activa: Lleva {pricing.minPhotos} o más{' '}
+                {pricing.isPayPerPhoto ? 'fotos' : 'fotos adicionales'} y obtén{' '}
+                {pricing.discountPercent}% de descuento automático
+                {pricing.qualifiesForDiscount
+                  ? ` (ahora a ${formatCOP(pricing.effectiveExtraPrice)} c/u).`
+                  : '.'}
               </span>
             </div>
           )}
@@ -828,7 +835,7 @@ export default function App() {
               isSelected={selectedIds.includes(photo.id)}
               selectionIndex={selectedIds.indexOf(photo.id)}
               includedLimit={activeEvent.includedPhotos}
-              extraPrice={activeEvent.extraPhotoPrice}
+              extraPrice={pricing.effectiveExtraPrice}
               watermarkText={activeEvent.watermarkText || STUDIO_CONFIG.watermark}
               onToggleSelect={toggleSelectPhoto}
               onZoom={() => setZoomPhotoIndex(idx)}
@@ -841,11 +848,11 @@ export default function App() {
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           <div
             onClick={() => selectedIds.length > 0 && setIsCheckoutOpen(true)}
-            className={selectedIds.length > 0 ? 'cursor-pointer' : ''}
+            className={selectedIds.length > 0 ? 'cursor-pointer min-w-0' : 'min-w-0'}
           >
             {pricing.isPayPerPhoto ? (
               <>
-                <div className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
+                <div className="text-xs font-bold text-neutral-900 flex items-center gap-1.5 flex-wrap">
                   <span>
                     {selectedIds.length}{' '}
                     {selectedIds.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}
@@ -865,11 +872,18 @@ export default function App() {
               </>
             ) : (
               <>
-                <div className="text-xs font-bold text-neutral-900">
-                  {selectedIds.length} / {activeEvent.includedPhotos} incluidas
+                <div className="text-xs font-bold text-neutral-900 flex items-center gap-1.5 flex-wrap">
+                  <span>
+                    {selectedIds.length} / {activeEvent.includedPhotos} incluidas
+                  </span>
                   {pricing.billableCount > 0 && (
-                    <span className="ml-1.5 text-amber-600 font-extrabold">
+                    <span className="text-amber-600 font-extrabold">
                       (+{pricing.billableCount} extras)
+                    </span>
+                  )}
+                  {pricing.qualifiesForDiscount && (
+                    <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full">
+                      -{pricing.discountPercent}% OFF
                     </span>
                   )}
                 </div>
@@ -883,11 +897,11 @@ export default function App() {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {selectedIds.length > 0 && (
               <button
                 onClick={() => setIsCheckoutOpen(true)}
-                className="px-3.5 py-2.5 rounded-xl font-semibold text-xs text-neutral-700 bg-neutral-100 hover:bg-neutral-200 transition"
+                className="hidden sm:inline-flex px-3.5 py-2.5 rounded-xl font-semibold text-xs text-neutral-700 bg-neutral-100 hover:bg-neutral-200 transition"
               >
                 Ver elegidas
               </button>
@@ -895,7 +909,7 @@ export default function App() {
             <button
               onClick={() => setIsCheckoutOpen(true)}
               disabled={selectedIds.length === 0}
-              className={`px-5 py-2.5 rounded-xl font-bold text-sm text-white transition ${
+              className={`px-4 sm:px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-white transition ${
                 selectedIds.length > 0
                   ? 'bg-neutral-900 hover:bg-neutral-800 shadow-sm'
                   : 'bg-neutral-300 cursor-not-allowed'
@@ -921,12 +935,11 @@ export default function App() {
           isSelected={selectedIds.includes(displayedPhotos[zoomPhotoIndex].id)}
           selectionIndex={selectedIds.indexOf(displayedPhotos[zoomPhotoIndex].id)}
           includedLimit={activeEvent.includedPhotos}
-          extraPrice={activeEvent.extraPhotoPrice}
+          extraPrice={pricing.effectiveExtraPrice}
           watermarkText={activeEvent.watermarkText || STUDIO_CONFIG.watermark}
           onClose={() => setZoomPhotoIndex(null)}
           onToggleSelect={(photoId) => {
             toggleSelectPhoto(photoId);
-            // Si estamos en modo "Solo elegidas" y quitamos la última foto, volvemos a "Todas"
             if (
               onlySelectedFilter &&
               selectedIds.length === 1 &&
