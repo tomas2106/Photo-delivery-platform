@@ -5,11 +5,17 @@ import {
   ChevronRight,
   Check,
   Plus,
+  Eye,
 } from 'lucide-react';
 import { formatCOP } from '../utils/formatters';
 
 export default function LightboxModal({
   photo,
+  currentIndex = 0,
+  totalPhotos = 0,
+  selectedCount = 0,
+  onlySelectedMode = false,
+  onToggleOnlySelected,
   isSelected,
   selectionIndex,
   includedLimit,
@@ -23,7 +29,6 @@ export default function LightboxModal({
   const touchStartX = useRef(null);
   const touchEndX = useRef(null);
 
-  // Bloqueo estricto del scroll trasero en móviles (iOS/Android) y PC
   useEffect(() => {
     if (!photo) return;
 
@@ -53,7 +58,6 @@ export default function LightboxModal({
     };
   }, [photo]);
 
-  // Navegación por teclado en PC
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
@@ -69,7 +73,6 @@ export default function LightboxModal({
   const isPayPerPhoto = includedLimit === 0;
   const isExtra = isSelected && (isPayPerPhoto || selectionIndex >= includedLimit);
 
-  // Deslizamiento táctil (Swipe) para pasar fotos en celular
   const handleTouchStart = (e) => {
     touchEndX.current = null;
     touchStartX.current = e.targetTouches[0].clientX;
@@ -95,12 +98,17 @@ export default function LightboxModal({
       onTouchEnd={handleTouchEnd}
       className="fixed inset-0 z-50 h-[100dvh] w-full bg-black/95 flex flex-col justify-between select-none overflow-hidden touch-none overscroll-none"
     >
-      {/* Barra superior */}
-      <div className="flex items-center justify-between px-4 py-3 text-white z-20 shrink-0">
+      {/* Barra superior con contador, estado y modo comparador */}
+      <div className="flex items-center justify-between px-4 py-3 text-white z-20 shrink-0 gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="font-mono text-xs sm:text-sm font-bold bg-white/10 px-3 py-1 rounded-full truncate">
             {photo.code}
           </span>
+          {totalPhotos > 0 && (
+            <span className="text-[11px] text-zinc-400 font-semibold hidden sm:inline">
+              {currentIndex + 1} / {totalPhotos}
+            </span>
+          )}
           {isSelected && (
             <span
               className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${
@@ -118,19 +126,39 @@ export default function LightboxModal({
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Cerrar vista previa"
-          className="p-2 rounded-full bg-white/15 hover:bg-white/25 text-white transition shrink-0"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {selectedCount > 0 && onToggleOnlySelected && (
+            <button
+              type="button"
+              onClick={onToggleOnlySelected}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 transition ${
+                onlySelectedMode
+                  ? 'bg-amber-500 text-black'
+                  : 'bg-white/15 hover:bg-white/25 text-white'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>
+                {onlySelectedMode
+                  ? `Comparando (${selectedCount})`
+                  : `Elegidas (${selectedCount})`}
+              </span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar vista previa"
+            className="p-2 rounded-full bg-white/15 hover:bg-white/25 text-white transition shrink-0"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Contenedor central de la imagen + marca de agua */}
       <div className="relative flex-1 min-h-0 flex items-center justify-center px-3 sm:px-16 overflow-hidden">
-        {/* Flecha anterior (Escritorio) */}
         <button
           type="button"
           onClick={onPrev}
@@ -140,7 +168,6 @@ export default function LightboxModal({
           <ChevronLeft className="w-6 h-6" />
         </button>
 
-        {/* Imagen protegida con patrón diagonal limpio */}
         <div className="relative max-h-full max-w-full flex items-center justify-center overflow-hidden rounded-lg">
           <img
             src={photo.url}
@@ -149,7 +176,6 @@ export default function LightboxModal({
             className="max-h-[72dvh] sm:max-h-[78dvh] max-w-full object-contain pointer-events-none select-none"
           />
 
-          {/* Marca de agua diagonal repetida de lado a lado */}
           <div
             aria-hidden="true"
             className="absolute inset-0 pointer-events-none overflow-hidden flex flex-col justify-between py-5 opacity-35"
@@ -165,7 +191,6 @@ export default function LightboxModal({
           </div>
         </div>
 
-        {/* Flecha siguiente (Escritorio) */}
         <button
           type="button"
           onClick={onNext}
@@ -178,7 +203,6 @@ export default function LightboxModal({
 
       {/* Barra inferior de controles (Móvil + Escritorio) */}
       <div className="px-4 py-4 flex items-center justify-center gap-3 z-20 shrink-0">
-        {/* Flecha anterior siempre visible en móviles */}
         <button
           type="button"
           onClick={onPrev}
@@ -212,7 +236,6 @@ export default function LightboxModal({
           )}
         </button>
 
-        {/* Flecha siguiente siempre visible en móviles */}
         <button
           type="button"
           onClick={onNext}

@@ -443,8 +443,27 @@ export default function App() {
           )}
 
           {loadingEvents ? (
-            <div className="flex items-center justify-center py-20 text-amber-600">
-              <Loader2 className="w-8 h-8 animate-spin" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-3">
+              {[0, 1, 2, 3, 4, 5].map((n) => (
+                <div
+                  key={n}
+                  className="rounded-3xl bg-neutral-200/80 aspect-[3/4] p-5 flex flex-col justify-between animate-pulse"
+                >
+                  <div className="flex justify-between">
+                    <div className="w-14 h-12 rounded-xl bg-neutral-300" />
+                    <div className="w-20 h-6 rounded-full bg-neutral-300" />
+                  </div>
+                  <div className="space-y-2.5">
+                    <div className="w-24 h-3 rounded bg-neutral-300" />
+                    <div className="w-3/4 h-5 rounded bg-neutral-300" />
+                    <div className="w-1/2 h-3 rounded bg-neutral-300" />
+                    <div className="pt-3 border-t border-neutral-300/70 flex justify-between items-center">
+                      <div className="w-24 h-6 rounded bg-neutral-300" />
+                      <div className="w-16 h-8 rounded-xl bg-neutral-300" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : filteredEvents.length === 0 ? (
             <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center my-4">
@@ -891,13 +910,38 @@ export default function App() {
       {zoomPhotoIndex !== null && displayedPhotos[zoomPhotoIndex] && (
         <LightboxModal
           photo={displayedPhotos[zoomPhotoIndex]}
+          currentIndex={zoomPhotoIndex}
+          totalPhotos={displayedPhotos.length}
+          selectedCount={selectedIds.length}
+          onlySelectedMode={onlySelectedFilter}
+          onToggleOnlySelected={() => {
+            setOnlySelectedFilter((prev) => !prev);
+            setZoomPhotoIndex(0);
+          }}
           isSelected={selectedIds.includes(displayedPhotos[zoomPhotoIndex].id)}
           selectionIndex={selectedIds.indexOf(displayedPhotos[zoomPhotoIndex].id)}
           includedLimit={activeEvent.includedPhotos}
           extraPrice={activeEvent.extraPhotoPrice}
           watermarkText={activeEvent.watermarkText || STUDIO_CONFIG.watermark}
           onClose={() => setZoomPhotoIndex(null)}
-          onToggleSelect={toggleSelectPhoto}
+          onToggleSelect={(photoId) => {
+            toggleSelectPhoto(photoId);
+            // Si estamos en modo "Solo elegidas" y quitamos la última foto, volvemos a "Todas"
+            if (
+              onlySelectedFilter &&
+              selectedIds.length === 1 &&
+              selectedIds[0] === photoId
+            ) {
+              setOnlySelectedFilter(false);
+              setZoomPhotoIndex(null);
+            } else if (
+              onlySelectedFilter &&
+              selectedIds.includes(photoId) &&
+              zoomPhotoIndex >= displayedPhotos.length - 1
+            ) {
+              setZoomPhotoIndex(Math.max(0, zoomPhotoIndex - 1));
+            }
+          }}
           onPrev={() =>
             setZoomPhotoIndex((prev) =>
               prev > 0 ? prev - 1 : displayedPhotos.length - 1
