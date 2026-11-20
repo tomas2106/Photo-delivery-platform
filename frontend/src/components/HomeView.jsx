@@ -9,6 +9,11 @@ import {
   ArrowRight,
   CheckCircle2,
   Sparkles,
+  CalendarCheck,
+  Clock,
+  MapPin,
+  HelpCircle,
+  ChevronDown,
 } from 'lucide-react';
 import { PORTFOLIO_DATA, PORTFOLIO_PHOTOS } from '../data/portfolioData';
 import { STUDIO_CONFIG } from '../data/eventsData';
@@ -31,9 +36,56 @@ function InstagramIcon({ className = 'w-4 h-4' }) {
   );
 }
 
+const COVERAGE_TYPES = [
+  'Motociclismo / Válida en pista',
+  'Torneo o Partido de Fútbol',
+  'Evento Deportivo Empresarial / Club',
+  'Sesión Personalizada (Piloto / Jugador)',
+  'Evento Social (Matrimonio / XV Años)',
+];
+
+const COVERAGE_DURATIONS = [
+  '2 horas (Sesión puntual)',
+  'Media jornada (4 horas)',
+  'Jornada completa (8 horas)',
+  'Fin de semana completo',
+];
+
+const FAQ_ITEMS = [
+  {
+    question: '¿Las fotografías finales se entregan sin marca de agua y en alta calidad?',
+    answer:
+      'Sí. Las imágenes en la galería web son muestras optimizadas con marca de agua protectora. Una vez confirmado el pago, recibes tus fotografías originales en máxima resolución (300 ppp), sin marcas de agua y listas para redes sociales o impresión.',
+  },
+  {
+    question: '¿Por qué medio y en cuánto tiempo recibo mis fotos?',
+    answer:
+      'Una vez envías tu selección desde el carrito de la web y confirmas el pago por WhatsApp, te entregamos tus archivos originales a través de una carpeta privada de Google Drive o directamente como documento por WhatsApp (sin pérdida de calidad) en menos de 24 horas.',
+  },
+  {
+    question: '¿Cómo funcionan los descuentos por volumen en eventos deportivos?',
+    answer:
+      'En los eventos habilitados con promoción, al seleccionar la cantidad mínima indicada en la galería, el carrito aplica automáticamente el porcentaje de descuento sobre el valor total antes de enviar tu pedido.',
+  },
+  {
+    question: '¿Realizas cubrimiento para clubes, válidas completas o eventos empresariales?',
+    answer:
+      'Sí. Contamos con planes por horas, media jornada o jornada completa para torneos de fútbol, válidas de motociclismo y eventos corporativos o sociales en Colombia, con entrega de galería digital dedicada para los participantes.',
+  },
+];
+
 export default function HomeView({ onGoToGallery }) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+
+  // Estado del Cotizador Interactivo de Disponibilidad
+  const [quoteType, setQuoteType] = useState(COVERAGE_TYPES[0]);
+  const [quoteDuration, setQuoteDuration] = useState(COVERAGE_DURATIONS[1]);
+  const [quoteCity, setQuoteCity] = useState('');
+  const [quoteDate, setQuoteDate] = useState('');
+
+  // Estado del Acordeón de Preguntas Frecuentes
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
 
   const touchStartX = useRef(null);
   const touchEndX = useRef(null);
@@ -87,6 +139,19 @@ export default function HomeView({ onGoToGallery }) {
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
   };
 
+  const buildInteractiveQuoteUrl = () => {
+    const cleanPhone = String(STUDIO_CONFIG.whatsapp || '').replace(/\D/g, '');
+    const lines = [
+      `Hola ${STUDIO_CONFIG.name}! Quisiera consultar disponibilidad y cotización para una cobertura:`,
+      '',
+      `• *Tipo de cobertura:* ${quoteType}`,
+      `• *Duración estimada:* ${quoteDuration}`,
+      `• *Ciudad / Pista / Cancha:* ${quoteCity.trim() || 'Por definir'}`,
+      `• *Fecha tentativa:* ${quoteDate.trim() || 'Por confirmar'}`,
+    ];
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(lines.join('\n'))}`;
+  };
+
   const activePhoto = PORTFOLIO_PHOTOS[currentSlide] || PORTFOLIO_PHOTOS[0];
 
   return (
@@ -113,13 +178,11 @@ export default function HomeView({ onGoToGallery }) {
 
             <div className="flex flex-wrap items-center gap-3 mt-8">
               <a
-                href={buildContactWhatsApp()}
-                target="_blank"
-                rel="noopener noreferrer"
+                href="#cotizador"
                 className="px-6 py-3.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm inline-flex items-center gap-2 shadow-sm transition"
               >
-                <MessageCircle className="w-4 h-4 text-amber-400" />
-                Cotizar mi Evento
+                <CalendarCheck className="w-4 h-4 text-amber-400" />
+                Solicitar Disponibilidad
               </a>
 
               <button
@@ -146,7 +209,6 @@ export default function HomeView({ onGoToGallery }) {
             </div>
           </div>
 
-          {/* Columna visual destacada */}
           <div className="lg:col-span-5">
             <div className="bg-white p-3 rounded-3xl border border-neutral-200 shadow-xl">
               <div className="relative rounded-2xl overflow-hidden aspect-[4/5] bg-neutral-100">
@@ -205,9 +267,7 @@ export default function HomeView({ onGoToGallery }) {
           </div>
 
           <a
-            href={buildContactWhatsApp()}
-            target="_blank"
-            rel="noopener noreferrer"
+            href="#cotizador"
             className="text-xs font-bold text-neutral-900 hover:text-amber-700 inline-flex items-center gap-1 transition"
           >
             Cotizar cobertura para mi evento <ArrowRight className="w-3.5 h-3.5" />
@@ -360,13 +420,11 @@ export default function HomeView({ onGoToGallery }) {
 
             <div className="mt-6 space-y-2.5">
               <a
-                href={buildContactWhatsApp()}
-                target="_blank"
-                rel="noopener noreferrer"
+                href="#cotizador"
                 className="w-full py-3.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm flex items-center justify-center gap-2 transition shadow-sm"
               >
-                <MessageCircle className="w-4 h-4 text-amber-400" />
-                Contactar por WhatsApp
+                <CalendarCheck className="w-4 h-4 text-amber-400" />
+                Configurar cotización rápida
               </a>
 
               <button
@@ -382,7 +440,7 @@ export default function HomeView({ onGoToGallery }) {
       </section>
 
       {/* SECCIÓN 4: SERVICIOS */}
-      <section className="max-w-5xl mx-auto px-4 py-14 sm:py-16">
+      <section className="max-w-5xl mx-auto px-4 pt-14 sm:pt-16 pb-8">
         <div className="text-center max-w-xl mx-auto mb-10">
           <span className="text-xs font-extrabold uppercase tracking-widest text-amber-700">
             Servicios Fotográficos
@@ -410,17 +468,188 @@ export default function HomeView({ onGoToGallery }) {
                 </p>
               </div>
 
-              <a
-                href={buildContactWhatsApp(service.title)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-6 pt-4 border-t border-neutral-100 text-xs font-bold text-neutral-900 hover:text-amber-700 inline-flex items-center justify-between transition"
+              <button
+                type="button"
+                onClick={() => {
+                  setQuoteType(service.title);
+                  document.getElementById('cotizador')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="mt-6 pt-4 border-t border-neutral-100 text-xs font-bold text-neutral-900 hover:text-amber-700 inline-flex items-center justify-between transition w-full"
               >
-                <span>Solicitar cotización</span>
+                <span>Cotizar este servicio</span>
                 <ArrowRight className="w-4 h-4" />
-              </a>
+              </button>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* SECCIÓN 5: COTIZADOR INTERACTIVO DE DISPONIBILIDAD */}
+      <section id="cotizador" className="max-w-5xl mx-auto px-4 py-10 sm:py-14">
+        <div className="bg-white rounded-3xl border border-neutral-200 shadow-md overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+          <div className="lg:col-span-5 bg-neutral-950 text-white p-7 sm:p-9 flex flex-col justify-between">
+            <div>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
+                Reserva y Disponibilidad
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black mt-4 leading-tight">
+                Cotiza la cobertura de tu próximo evento
+              </h2>
+              <p className="text-xs sm:text-sm text-zinc-400 mt-3 leading-relaxed">
+                Selecciona el tipo de cobertura y la duración estimada. Recibirás una propuesta personalizada directa en tu WhatsApp.
+              </p>
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-white/10 space-y-2.5 text-xs text-zinc-300">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Entrega en galería digital privada o pública</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Atención a pilotos, equipos, marcas y organizadores</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-7 p-7 sm:p-9 space-y-5">
+            <div>
+              <label className="block text-xs font-bold text-neutral-800 mb-2">
+                1. Tipo de cobertura
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {COVERAGE_TYPES.map((type) => {
+                  const active = quoteType === type;
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setQuoteType(type)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition border ${
+                        active
+                          ? 'bg-neutral-900 text-white border-neutral-900 shadow-2xs'
+                          : 'bg-neutral-50 text-neutral-700 border-neutral-200 hover:border-neutral-400'
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-neutral-800 mb-2 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                2. Duración estimada
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {COVERAGE_DURATIONS.map((duration) => {
+                  const active = quoteDuration === duration;
+                  return (
+                    <button
+                      key={duration}
+                      type="button"
+                      onClick={() => setQuoteDuration(duration)}
+                      className={`px-3.5 py-2.5 rounded-xl text-xs font-semibold text-left transition border ${
+                        active
+                          ? 'bg-amber-50 text-amber-950 border-amber-500 font-bold'
+                          : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
+                      }`}
+                    >
+                      {duration}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-neutral-800 mb-1.5 flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                  3. Ciudad o escenario
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. Autódromo Tocancipá / Bogotá"
+                  value={quoteCity}
+                  onChange={(e) => setQuoteCity(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-xs select-text focus:outline-none focus:border-neutral-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-neutral-800 mb-1.5 flex items-center gap-1.5">
+                  <CalendarCheck className="w-3.5 h-3.5 text-amber-600" />
+                  4. Fecha estimada
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. Próximo domingo / 15 de diciembre"
+                  value={quoteDate}
+                  onChange={(e) => setQuoteDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-xs select-text focus:outline-none focus:border-neutral-900"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <a
+                href={buildInteractiveQuoteUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-sm flex items-center justify-center gap-2 shadow-md transition"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Solicitar disponibilidad por WhatsApp
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SECCIÓN 6: PREGUNTAS FRECUENTES (FAQ) */}
+      <section className="max-w-5xl mx-auto px-4 pt-4 pb-16">
+        <div className="bg-white rounded-3xl border border-neutral-200 p-7 sm:p-10 shadow-2xs">
+          <div className="max-w-2xl mb-7">
+            <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-amber-700">
+              <HelpCircle className="w-3.5 h-3.5" />
+              Preguntas Frecuentes
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-neutral-950 mt-1">
+              Todo claro antes de tu compra o cobertura
+            </h2>
+          </div>
+
+          <div className="divide-y divide-neutral-200/80">
+            {FAQ_ITEMS.map((item, idx) => {
+              const isOpen = openFaqIndex === idx;
+              return (
+                <div key={idx} className="py-4 first:pt-0 last:pb-0">
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaqIndex(isOpen ? -1 : idx)}
+                    className="w-full flex items-center justify-between gap-4 text-left py-1 focus:outline-none group"
+                  >
+                    <span className="text-sm sm:text-base font-bold text-neutral-900 group-hover:text-amber-700 transition">
+                      {item.question}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-neutral-500 shrink-0 transition-transform duration-200 ${
+                        isOpen ? 'rotate-180 text-amber-600' : ''
+                      }`}
+                    />
+                  </button>
+                  {isOpen && (
+                    <p className="text-xs sm:text-sm text-neutral-600 mt-2.5 leading-relaxed pr-6">
+                      {item.answer}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
     </div>

@@ -46,6 +46,58 @@ export const unlockEventGallery = async (eventId, pin) => {
   return response.json();
 };
 
+export const trackEventView = async (eventId) => {
+  try {
+    await fetch(`${API_BASE_URL}/events/${eventId}/view/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch {
+    // Silencioso para no interrumpir la experiencia del cliente
+  }
+};
+
+export const registerOrder = async (orderPayload) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/orders/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderPayload),
+    });
+    if (!response.ok) return null;
+    return response.json();
+  } catch {
+    return null;
+  }
+};
+
+export const getAdminAnalytics = async () => {
+  const response = await fetch(`${API_BASE_URL}/admin/analytics/`, {
+    headers: getAdminHeaders(),
+  });
+  if (!response.ok) throw new Error('Error al cargar estadísticas');
+  return response.json();
+};
+
+export const updateOrderStatus = async (orderId, status) => {
+  const response = await fetch(`${API_BASE_URL}/admin/orders/${orderId}/`, {
+    method: 'PATCH',
+    headers: getAdminHeaders(),
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) throw new Error('Error al actualizar el pedido');
+  return response.json();
+};
+
+export const deleteOrder = async (orderId) => {
+  const response = await fetch(`${API_BASE_URL}/admin/orders/${orderId}/`, {
+    method: 'DELETE',
+    headers: getAdminHeaders(),
+  });
+  if (!response.ok) throw new Error('Error al eliminar el pedido');
+  return true;
+};
+
 export const createEvent = async (newEventData) => {
   const response = await fetch(`${API_BASE_URL}/events/`, {
     method: 'POST',

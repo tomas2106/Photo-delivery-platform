@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
-import { X, Send, Copy, CheckCircle2, Trash2 } from 'lucide-react';
-import { formatCOP, buildWhatsAppUrl } from '../utils/formatters';
+import { X, Send, Copy, CheckCircle2, Trash2, Tag } from 'lucide-react';
+import {
+  formatCOP,
+  buildWhatsAppUrl,
+  calculateOrderPricing,
+} from '../utils/formatters';
 import { STUDIO_CONFIG } from '../data/eventsData';
+import { registerOrder } from '../services/eventService';
 
 export default function CheckoutDrawer({
   isOpen,
@@ -14,7 +19,6 @@ export default function CheckoutDrawer({
   const [clientName, setClientName] = useState('');
   const [copied, setCopied] = useState(false);
 
-  // Bloqueo estricto de scroll en móviles (iOS Safari + Android Chrome) y escritorio
   useEffect(() => {
     if (!isOpen) return;
 
@@ -46,26 +50,38 @@ export default function CheckoutDrawer({
 
   if (!isOpen) return null;
 
-  const isPayPerPhoto = event.includedPhotos === 0;
   const totalSelected = selectedPhotos.length;
-  const includedCount = Math.min(totalSelected, event.includedPhotos);
-  const extraCount = Math.max(0, totalSelected - event.includedPhotos);
-  const extraTotal = extraCount * event.extraPhotoPrice;
+  const includedCount = Math.min(totalSelected, event.includedPhotos || 0);
   const watermarkText = event.watermarkText || STUDIO_CONFIG.watermark;
+  const pricing = calculateOrderPricing(event, totalSelected);
 
   const { url, rawMessage } = buildWhatsAppUrl({
     phone: STUDIO_CONFIG.whatsapp,
     eventTitle: event.title,
     clientName: clientName.trim() || 'Cliente',
     selectedPhotos,
-    includedLimit: event.includedPhotos,
-    extraPrice: event.extraPhotoPrice,
+    event,
   });
 
   const handleCopy = () => {
     navigator.clipboard.writeText(rawMessage);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleSendOrder = () => {
+    if (totalSelected === 0) return;
+
+    // Registrar silenciosamente el pedido y métricas en el backend
+    registerOrder({
+      eventId: event.id,
+      clientName: clientName.trim() || 'Cliente',
+      photoIds: selectedPhotos.map((p) => p.id),
+      photoCodes: selectedPhotos.map((p) => p.code),
+      subtotalAmount: pricing.subtotal,
+      discountAmount: pricing.discountAmount,
+      totalAmount: pricing.finalTotal,
+    });
   };
 
   return (
@@ -78,7 +94,6 @@ export default function CheckoutDrawer({
         onClick={(e) => e.stopPropagation()}
         className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 max-h-[85dvh] flex flex-col shadow-2xl overflow-hidden"
       >
-        {/* Cabecera fija (no arrastra el fondo al tocarla) */}
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3.5 shrink-0 touch-none">
           <div>
             <h3 className="text-lg font-bold text-neutral-950">Resumen de Selección</h3>
@@ -106,11 +121,40 @@ export default function CheckoutDrawer({
           </div>
         </div>
 
-        {/* Único contenedor desplazable interno */}
         <div
           style={{ WebkitOverflowScrolling: 'touch' }}
           className="py-4 space-y-4 overflow-y-auto overscroll-y-contain flex-1 min-h-0 pr-0.5"
         >
+          {/* Banner de incentivo o confirmación de descuento por volumen */}
+          {pricing.discountEnabled && pricing.minPhotos > 0 && pricing.discountPercent > 0 && (
+            <div
+              className={`rounded-xl p-3 text-xs flex items-center gap-2.5 border ${
+                pricing.qualifiesForDiscount
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : 'bg-amber-50 border-amber-200 text-amber-900'
+              }`}
+            >
+              <Tag className="w-4 h-4 shrink-0 text-amber-600" />
+              {pricing.qualifiesForDiscount ? (
+                <span>
+                  ¡Felicidades! Aplicaste al{' '}
+                  <strong>{pricing.discountPercent}% de descuento por volumen</strong> (ahorras{' '}
+                  <strong>{formatCOP(pricing.discountAmount)}</strong>).
+                </span>
+              ) : (
+                <span>
+                  Elige{' '}
+                  <strong>
+                    {pricing.photosNeededForDiscount}{' '}
+                    {pricing.photosNeededForDiscount === 1 ? 'foto más' : 'fotos más'}
+                  </strong>{' '}
+                  (mín. {pricing.minPhotos}) y obtén{' '}
+                  <strong>{pricing.discountPercent}% de descuento</strong>.
+                </span>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-semibold text-neutral-700 mb-1">
               Tu nombre completo *
@@ -124,9 +168,8 @@ export default function CheckoutDrawer({
             />
           </div>
 
-          {/* Resumen financiero */}
           <div className="bg-neutral-50 rounded-xl p-4 space-y-2 text-sm border border-neutral-200/70">
-            {!isPayPerPhoto && (
+            {!pricing.isPayPerPhoto && (
               <div className="flex justify-between text-neutral-600">
                 <span>Fotos incluidas en contrato:</span>
                 <span className="font-semibold text-neutral-950">
@@ -136,21 +179,34 @@ export default function CheckoutDrawer({
             )}
             <div className="flex justify-between text-neutral-600">
               <span>
-                {isPayPerPhoto
+                {pricing.isPayPerPhoto
                   ? `Fotos seleccionadas (${formatCOP(event.extraPhotoPrice)} c/u):`
                   : `Fotos adicionales (${formatCOP(event.extraPhotoPrice)} c/u):`}
               </span>
-              <span className="font-semibold text-amber-600">
-                {isPayPerPhoto ? totalSelected : `+${extraCount}`}
+              <span className="font-semibold text-neutral-900">
+                {pricing.isPayPerPhoto ? totalSelected : `+${pricing.billableCount}`}
               </span>
             </div>
+
+            {pricing.qualifiesForDiscount && (
+              <>
+                <div className="flex justify-between text-neutral-500 text-xs">
+                  <span>Subtotal:</span>
+                  <span>{formatCOP(pricing.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-700 font-semibold text-xs">
+                  <span>Descuento volumen ({pricing.discountPercent}%):</span>
+                  <span>-{formatCOP(pricing.discountAmount)}</span>
+                </div>
+              </>
+            )}
+
             <div className="border-t border-neutral-200 pt-2 flex justify-between text-base font-bold text-neutral-950">
-              <span>{isPayPerPhoto ? 'Total a pagar:' : 'Valor adicional a pagar:'}</span>
-              <span className="text-amber-700">{formatCOP(extraTotal)}</span>
+              <span>{pricing.isPayPerPhoto ? 'Total a pagar:' : 'Valor adicional a pagar:'}</span>
+              <span className="text-amber-700">{formatCOP(pricing.finalTotal)}</span>
             </div>
           </div>
 
-          {/* Galería visual protegida de fotos seleccionadas */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-neutral-700">
@@ -179,7 +235,7 @@ export default function CheckoutDrawer({
             ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
                 {selectedPhotos.map((photo, idx) => {
-                  const isExtra = idx >= event.includedPhotos;
+                  const isExtra = pricing.isPayPerPhoto || idx >= event.includedPhotos;
                   return (
                     <div
                       key={photo.id}
@@ -193,7 +249,6 @@ export default function CheckoutDrawer({
                         className="w-full h-full object-cover pointer-events-none select-none"
                       />
 
-                      {/* Marca de agua protectora */}
                       <div
                         aria-hidden="true"
                         className="absolute inset-0 pointer-events-none overflow-hidden flex flex-col justify-center gap-3 opacity-45"
@@ -219,9 +274,7 @@ export default function CheckoutDrawer({
 
                       <div className="absolute inset-x-0 bottom-0 z-10 bg-black/75 px-1.5 py-0.5 text-[10px] text-white flex items-center justify-between">
                         <span className="truncate font-medium">{photo.code}</span>
-                        {isExtra && (
-                          <span className="text-amber-400 font-bold ml-1">$</span>
-                        )}
+                        {isExtra && <span className="text-amber-400 font-bold ml-1">$</span>}
                       </div>
                     </div>
                   );
@@ -231,14 +284,17 @@ export default function CheckoutDrawer({
           </div>
         </div>
 
-        {/* Botón WhatsApp fijo abajo */}
         <div className="pt-3 border-t border-neutral-100 shrink-0 touch-none">
           <a
             href={totalSelected > 0 ? url : '#'}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => {
-              if (totalSelected === 0) e.preventDefault();
+              if (totalSelected === 0) {
+                e.preventDefault();
+                return;
+              }
+              handleSendOrder();
             }}
             className={`w-full py-3.5 rounded-xl font-bold text-white flex items-center justify-center gap-2 shadow-lg transition ${
               totalSelected > 0
