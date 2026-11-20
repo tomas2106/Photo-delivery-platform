@@ -431,7 +431,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4">
+      <div className="min-h-screen w-full overflow-x-hidden bg-[#FAFAFA] flex items-center justify-center p-4">
         <div className="bg-white w-full max-w-sm rounded-2xl p-6 border border-neutral-200 shadow-sm text-center">
           <div className="w-12 h-12 rounded-full bg-neutral-900 text-white flex items-center justify-center mx-auto mb-4">
             <Lock className="w-5 h-5" />
@@ -490,19 +490,21 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const remainingAdminEvents = filteredAdminEvents.length - adminVisibleCount;
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] pb-16">
-      <header className="bg-white border-b border-neutral-200 sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 font-black text-base sm:text-lg text-neutral-950">
-            <FolderKanban className="w-5 h-5 text-amber-600 shrink-0" />
-            <span className="truncate">ADMIN • {STUDIO_CONFIG.name}</span>
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#FAFAFA] pb-16">
+      <header className="w-full bg-white border-b border-neutral-200 sticky top-0 z-30">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 sm:h-16 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 font-black text-sm sm:text-lg text-neutral-950 min-w-0">
+            <FolderKanban className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 shrink-0" />
+            <span className="truncate">
+              ADMIN <span className="hidden sm:inline">• {STUDIO_CONFIG.name}</span>
+            </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab('events')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition ${
                 activeTab === 'events'
                   ? 'bg-neutral-900 text-white'
                   : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
@@ -513,20 +515,21 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
             <button
               type="button"
               onClick={() => setActiveTab('analytics')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold inline-flex items-center gap-1 transition ${
                 activeTab === 'analytics'
                   ? 'bg-amber-600 text-white'
                   : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5" />
-              Estadísticas
+              <span>Stats</span>
             </button>
             <button
               onClick={handleExitToPublic}
-              className="text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-900 px-3 py-1.5 rounded-lg flex items-center gap-1 transition"
+              className="text-[11px] sm:text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-900 px-2.5 sm:px-3 py-1.5 rounded-lg flex items-center gap-1 transition"
             >
-              <ArrowLeft className="w-3.5 h-3.5" /> Salir
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Salir</span>
             </button>
           </div>
         </div>
@@ -541,7 +544,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
             </div>
           ) : (
             <>
-              {/* Tarjetas resumen */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white rounded-2xl p-5 border border-neutral-200">
                   <div className="flex items-center justify-between text-xs font-bold text-neutral-500">
@@ -596,9 +598,8 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                 </div>
               </div>
 
-              {/* Eventos más vistos y Fotos más elegidas */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-2xl p-5 border border-neutral-200">
+                <div className="bg-white rounded-2xl p-5 border border-neutral-200 min-w-0">
                   <h3 className="font-bold text-sm text-neutral-950 mb-3">
                     Eventos más vistos
                   </h3>
@@ -609,10 +610,10 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                       {analyticsData.topEvents.map((item, idx) => (
                         <div
                           key={item.id}
-                          className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 border border-neutral-100 text-xs"
+                          className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 border border-neutral-100 text-xs gap-2"
                         >
-                          <div className="min-w-0 pr-2">
-                            <span className="font-bold text-neutral-900">
+                          <div className="min-w-0">
+                            <span className="font-bold text-neutral-900 block truncate">
                               {idx + 1}. {item.title}
                             </span>
                             <p className="text-[11px] text-neutral-500">{item.category}</p>
@@ -626,7 +627,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                   )}
                 </div>
 
-                <div className="bg-white rounded-2xl p-5 border border-neutral-200">
+                <div className="bg-white rounded-2xl p-5 border border-neutral-200 min-w-0">
                   <h3 className="font-bold text-sm text-neutral-950 mb-3">
                     Fotografías más seleccionadas
                   </h3>
@@ -662,7 +663,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                 </div>
               </div>
 
-              {/* Historial de Pedidos e Ingresos */}
               <div className="bg-white rounded-2xl p-5 border border-neutral-200">
                 <h3 className="font-bold text-base text-neutral-950 mb-4">
                   Historial de Pedidos y Validación de Ingresos
@@ -681,7 +681,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                           key={order.id}
                           className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                         >
-                          <div className="space-y-1">
+                          <div className="space-y-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold text-sm text-neutral-950">
                                 {order.clientName}
@@ -717,7 +717,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                             </p>
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-2 flex-wrap shrink-0">
                             <button
                               type="button"
                               onClick={() => handleCopyLightroomList(order)}
@@ -767,16 +767,16 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
       ) : (
         /* PESTAÑA DE GESTIÓN DE EVENTOS */
         <main className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-7 bg-white rounded-2xl p-6 border border-neutral-200 shadow-xs h-fit">
-            <div className="flex items-center justify-between mb-4">
+          <div className="lg:col-span-7 bg-white rounded-2xl p-5 sm:p-6 border border-neutral-200 shadow-xs h-fit min-w-0">
+            <div className="flex items-center justify-between gap-2 mb-4">
               <h2 className="font-bold text-lg text-neutral-950 flex items-center gap-2">
                 {editingEventId ? (
                   <>
-                    <Pencil className="w-5 h-5 text-amber-600" /> Editando Evento
+                    <Pencil className="w-5 h-5 text-amber-600 shrink-0" /> Editando Evento
                   </>
                 ) : (
                   <>
-                    <Plus className="w-5 h-5 text-amber-600" /> Crear Nuevo Evento
+                    <Plus className="w-5 h-5 text-amber-600 shrink-0" /> Crear Nuevo Evento
                   </>
                 )}
               </h2>
@@ -785,9 +785,9 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="text-xs font-semibold text-neutral-600 hover:text-neutral-950 flex items-center gap-1 bg-neutral-100 px-3 py-1.5 rounded-lg"
+                  className="text-xs font-semibold text-neutral-600 hover:text-neutral-950 flex items-center gap-1 bg-neutral-100 px-3 py-1.5 rounded-lg shrink-0"
                 >
-                  <X className="w-3.5 h-3.5" /> Cancelar edición
+                  <X className="w-3.5 h-3.5" /> Cancelar
                 </button>
               )}
             </div>
@@ -846,8 +846,8 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
               </div>
 
               <div className="bg-neutral-50 p-3.5 rounded-xl border border-neutral-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
                     <p className="text-xs font-bold text-neutral-800">Privacidad de la galería</p>
                     <p className="text-[11px] text-neutral-500">
                       {requiresPin
@@ -858,7 +858,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                   <button
                     type="button"
                     onClick={() => setRequiresPin(!requiresPin)}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition ${
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition shrink-0 ${
                       requiresPin ? 'bg-neutral-900 text-white' : 'bg-amber-600 text-white'
                     }`}
                   >
@@ -922,10 +922,10 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 bg-neutral-50 p-3.5 rounded-xl border border-neutral-200">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 bg-neutral-50 p-3.5 rounded-xl border border-neutral-200">
                 <div>
                   <label className="block text-xs font-bold text-neutral-800 mb-1">
-                    Fotos incluidas (0 = venta individual) *
+                    Fotos incluidas (0 = individual) *
                   </label>
                   <input
                     type="number"
@@ -933,7 +933,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                     required
                     value={includedPhotos}
                     onChange={(e) => setIncludedPhotos(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl border border-neutral-300 bg-white focus:outline-none focus:border-neutral-900"
+                    className="w-full px-3 py-2 rounded-xl border border-neutral-300 bg-white focus:outline-none focus:border-neutral-900"
                   />
                 </div>
 
@@ -948,17 +948,17 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                     required
                     value={extraPhotoPrice}
                     onChange={(e) => setExtraPhotoPrice(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl border border-neutral-300 bg-white focus:outline-none focus:border-neutral-900"
+                    className="w-full px-3 py-2 rounded-xl border border-neutral-300 bg-white focus:outline-none focus:border-neutral-900"
                   />
                 </div>
               </div>
 
               {/* Configuración opcional de Descuento por Volumen */}
               <div className="bg-amber-50/50 p-3.5 rounded-xl border border-amber-200/80 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
                     <p className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-amber-600" />
+                      <Tag className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                       Descuento por volumen (Opcional)
                     </p>
                     <p className="text-[11px] text-neutral-500">
@@ -968,7 +968,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                   <button
                     type="button"
                     onClick={() => setVolumeDiscountEnabled(!volumeDiscountEnabled)}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition ${
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition shrink-0 ${
                       volumeDiscountEnabled
                         ? 'bg-amber-600 text-white'
                         : 'bg-neutral-200 text-neutral-700'
@@ -1009,8 +1009,8 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                 )}
               </div>
 
-              <div className="flex items-center justify-between bg-neutral-50 px-4 py-3 rounded-xl border border-neutral-200">
-                <div>
+              <div className="flex items-center justify-between gap-2 bg-neutral-50 px-4 py-3 rounded-xl border border-neutral-200">
+                <div className="min-w-0">
                   <p className="text-xs font-bold text-neutral-800">Estado en la página principal</p>
                   <p className="text-[11px] text-neutral-500">
                     {isActive
@@ -1021,7 +1021,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                 <button
                   type="button"
                   onClick={() => setIsActive(!isActive)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition ${
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition shrink-0 ${
                     isActive ? 'bg-emerald-600 text-white' : 'bg-neutral-300 text-neutral-700'
                   }`}
                 >
@@ -1174,7 +1174,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
           </div>
 
           {/* COLUMNA DERECHA: Eventos Registrados */}
-          <div className="lg:col-span-5 space-y-4">
+          <div className="lg:col-span-5 space-y-4 min-w-0">
             <div className="flex items-center justify-between">
               <h2 className="font-bold text-lg text-neutral-950">
                 Eventos Registrados ({filteredAdminEvents.length})
@@ -1303,9 +1303,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                           </p>
                           <p className="text-[11px] text-neutral-500">
                             {ev.includedPhotos === 0 ? (
-                              <>
-                                Individual ({formatCOP(ev.extraPhotoPrice)} c/u)
-                              </>
+                              <>Individual ({formatCOP(ev.extraPhotoPrice)} c/u)</>
                             ) : (
                               <>
                                 Paquete: <strong>{ev.includedPhotos}</strong> | Extra:{' '}

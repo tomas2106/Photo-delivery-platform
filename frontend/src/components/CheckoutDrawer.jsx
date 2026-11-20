@@ -72,7 +72,6 @@ export default function CheckoutDrawer({
   const handleSendOrder = () => {
     if (totalSelected === 0) return;
 
-    // Registrar silenciosamente el pedido y métricas en el backend
     registerOrder({
       eventId: event.id,
       clientName: clientName.trim() || 'Cliente',
@@ -125,7 +124,6 @@ export default function CheckoutDrawer({
           style={{ WebkitOverflowScrolling: 'touch' }}
           className="py-4 space-y-4 overflow-y-auto overscroll-y-contain flex-1 min-h-0 pr-0.5"
         >
-          {/* Banner de incentivo o confirmación de descuento por volumen */}
           {pricing.discountEnabled && pricing.minPhotos > 0 && pricing.discountPercent > 0 && (
             <div
               className={`rounded-xl p-3 text-xs flex items-center gap-2.5 border ${
@@ -146,9 +144,15 @@ export default function CheckoutDrawer({
                   Elige{' '}
                   <strong>
                     {pricing.photosNeededForDiscount}{' '}
-                    {pricing.photosNeededForDiscount === 1 ? 'foto más' : 'fotos más'}
+                    {pricing.photosNeededForDiscount === 1
+                      ? pricing.isPayPerPhoto
+                        ? 'foto más'
+                        : 'foto adicional más'
+                      : pricing.isPayPerPhoto
+                      ? 'fotos más'
+                      : 'fotos adicionales más'}
                   </strong>{' '}
-                  (mín. {pricing.minPhotos}) y obtén{' '}
+                  (mín. {pricing.minPhotos} {pricing.isPayPerPhoto ? '' : 'extras'}) y obtén{' '}
                   <strong>{pricing.discountPercent}% de descuento</strong>.
                 </span>
               )}
@@ -180,8 +184,8 @@ export default function CheckoutDrawer({
             <div className="flex justify-between text-neutral-600">
               <span>
                 {pricing.isPayPerPhoto
-                  ? `Fotos seleccionadas (${formatCOP(event.extraPhotoPrice)} c/u):`
-                  : `Fotos adicionales (${formatCOP(event.extraPhotoPrice)} c/u):`}
+                  ? `Fotos seleccionadas (${formatCOP(pricing.effectiveExtraPrice)} c/u):`
+                  : `Fotos adicionales (${formatCOP(pricing.effectiveExtraPrice)} c/u):`}
               </span>
               <span className="font-semibold text-neutral-900">
                 {pricing.isPayPerPhoto ? totalSelected : `+${pricing.billableCount}`}
