@@ -1,60 +1,70 @@
-export const formatCOP = (amount) => {
+export const formatCOP = (value) => {
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(value || 0);
 };
 
-export const parseEventDateBadge = (dateString) => {
-  if (!dateString) return { day: '--', month: 'EVT', year: '2026' };
+export const parseEventDateBadge = (dateStr) => {
+  if (!dateStr) return { day: 'EV', month: 'GALERÍA', year: '' };
 
-  const monthsMap = {
-    enero: 'ENE',
-    febrero: 'FEB',
-    marzo: 'MAR',
-    abril: 'ABR',
-    mayo: 'MAY',
-    junio: 'JUN',
-    julio: 'JUL',
-    agosto: 'AGO',
-    septiembre: 'SEP',
-    setiembre: 'SEP',
-    octubre: 'OCT',
-    noviembre: 'NOV',
-    diciembre: 'DIC',
-  };
+  const clean = dateStr.trim();
+  const match = clean.match(/(\d{1,2})\s*(?:de\s+)?([a-zA-ZáéíóúÁÉÍÓÚ]+)(?:\s*(?:de\s+)?(\d{4}))?/i);
 
-  const lower = dateString.toLowerCase();
-
-  // Detectar formato YYYY-MM-DD
-  const isoMatch = lower.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) {
-    const monthNames = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-    const monthIdx = Math.max(0, Math.min(11, parseInt(isoMatch[2], 10) - 1));
-    return {
-      day: isoMatch[3],
-      month: monthNames[monthIdx],
-      year: isoMatch[1],
-    };
+  if (match) {
+    const day = match[1].padStart(2, '0');
+    const month = match[2].slice(0, 3).toUpperCase();
+    const year = match[3] || '';
+    return { day, month, year };
   }
 
-  // Detectar formato en español: "16 de noviembre de 2026" o "08 nov 2026"
-  const dayMatch = lower.match(/\b(\d{1,2})\b/);
-  const yearMatch = lower.match(/\b(20\d{2})\b/);
+  return { day: '••', month: clean.slice(0, 10).toUpperCase(), year: '' };
+};
 
-  let detectedMonth = 'EVT';
-  for (const [full, abbr] of Object.entries(monthsMap)) {
-    if (lower.includes(full) || lower.includes(abbr.toLowerCase())) {
-      detectedMonth = abbr;
-      break;
-    }
-  }
+export const calculateOrderPricing = (event, totalSelectedCount) => {
+  const includedLimit = event.includedPhotos || 0;
+  const extraPrice = event.extraPhotoPrice || 0;
+  const isPayPerPhoto = includedLimit === 0;
+
+  const billableCount = isPayPerPhoto
+    ? totalSelectedCount
+    : Math.max(0, totalSelectedCount - includedLimit);
+
+  const subtotal = billableCount * extraPrice;
+
+  const discountEnabled = Boolean(event.volumeDiscountEnabled);
+  const minPhotos = event.volumeDiscountMinPhotos || 0;
+  const discountPercent = event.volumeDiscountPercent || 0;
+
+  const qualifiesForDiscount =
+    discountEnabled &&
+    minPhotos > 0 &&
+    discountPercent > 0 &&
+    totalSelectedCount >= minPhotos &&
+    subtotal > 0;
+
+  const discountAmount = qualifiesForDiscount
+    ? Math.round((subtotal * discountPercent) / 100)
+    : 0;
+
+  const finalTotal = Math.max(0, subtotal - discountAmount);
+  const photosNeededForDiscount =
+    discountEnabled && minPhotos > totalSelectedCount
+      ? minPhotos - totalSelectedCount
+      : 0;
 
   return {
-    day: dayMatch ? dayMatch[1].padStart(2, '0') : '--',
-    month: detectedMonth,
-    year: yearMatch ? yearMatch[1] : String(new Date().getFullYear()),
+    isPayPerPhoto,
+    billableCount,
+    subtotal,
+    discountEnabled,
+    minPhotos,
+    discountPercent,
+    qualifiesForDiscount,
+    discountAmount,
+    finalTotal,
+    photosNeededForDiscount,
   };
 };
 
@@ -63,28 +73,44 @@ export const buildWhatsAppUrl = ({
   eventTitle,
   clientName,
   selectedPhotos,
-  includedLimit,
-  extraPrice,
+  event,
 }) => {
+  const cleanPhone = String(phone || '').replace(/\D/g, '');
   const totalSelected = selectedPhotos.length;
-  const extraCount = Math.max(0, totalSelected - includedLimit);
-  const totalAmount = extraCount * extraPrice;
-  const codes = selectedPhotos.map((p) => p.code).join(', ');
+  const includedLimit = event.includedPhotos || 0;
+  const pricing = calculateOrderPricing(event, totalSelected);
 
-  const message = `Hola TOMASPH, ya realice mi seleccion de fotos.
+  const lines = [
+    `Hola! Soy *${clientName}*.`,
+    `Esta es mi selección de fotos del evento *${eventTitle}*:`,
+    '',
+    `• Total seleccionadas: *${totalSelected}*`,
+  ];
 
-*Evento:* ${eventTitle}
-*Cliente:* ${clientName}
-*Total seleccionadas:* ${totalSelected} fotos
-*Incluidas en paquete:* ${Math.min(totalSelected, includedLimit)}
-*Fotos adicionales:* ${extraCount} (${formatCOP(extraPrice)} c/u)
-*Total adicional a pagar:* ${formatCOP(totalAmount)}
+  if (!pricing.isPayPerPhoto) {
+    const includedUsed = Math.min(totalSelected, includedLimit);
+    lines.push(`• Incluidas en paquete: *${includedUsed} / ${includedLimit}*`);
+    lines.push(`• Fotos adicionales: *${pricing.billableCount}*`);
+  }
 
-*Codigos seleccionados:*
-${codes}`;
+  if (pricing.qualifiesForDiscount) {
+    lines.push(`• Subtotal: ${formatCOP(pricing.subtotal)}`);
+    lines.push(
+      `• Descuento por volumen (${pricing.discountPercent}%): *-${formatCOP(pricing.discountAmount)}*`
+    );
+  }
 
-  return {
-    url: `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
-    rawMessage: message,
-  };
+  lines.push(`• *Total a pagar: ${formatCOP(pricing.finalTotal)}*`);
+  lines.push('');
+  lines.push('*Códigos de las fotos elegidas:*');
+
+  selectedPhotos.forEach((p, idx) => {
+    const isExtra = pricing.isPayPerPhoto || idx >= includedLimit;
+    lines.push(`${idx + 1}. ${p.code}${isExtra ? ' ($)' : ''}`);
+  });
+
+  const rawMessage = lines.join('\n');
+  const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(rawMessage)}`;
+
+  return { url, rawMessage, pricing };
 };

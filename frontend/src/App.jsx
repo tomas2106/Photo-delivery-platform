@@ -14,10 +14,21 @@ import {
   X,
   ShieldAlert,
   ChevronDown,
+  Share2,
+  Check,
+  Tag,
 } from 'lucide-react';
-import { getEvents, unlockEventGallery } from './services/eventService';
+import {
+  getEvents,
+  unlockEventGallery,
+  trackEventView,
+} from './services/eventService';
 import { CATEGORY_STRUCTURE, STUDIO_CONFIG } from './data/eventsData';
-import { formatCOP, parseEventDateBadge } from './utils/formatters';
+import {
+  formatCOP,
+  parseEventDateBadge,
+  calculateOrderPricing,
+} from './utils/formatters';
 import PhotoCard from './components/PhotoCard';
 import LightboxModal from './components/LightboxModal';
 import CheckoutDrawer from './components/CheckoutDrawer';
@@ -47,14 +58,53 @@ export default function App() {
   const [onlySelectedFilter, setOnlySelectedFilter] = useState(false);
   const [zoomPhotoIndex, setZoomPhotoIndex] = useState(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [copiedEventId, setCopiedEventId] = useState(null);
 
   const [isPrivacyShieldActive, setIsPrivacyShieldActive] = useState(false);
 
-  const loadEvents = async () => {
+  const syncUrlEventParam = (eventId) => {
+    const url = new URL(window.location.href);
+    if (eventId) {
+      url.searchParams.set('evento', eventId);
+    } else {
+      url.searchParams.delete('evento');
+    }
+    window.history.replaceState({}, '', url.toString());
+  };
+
+  const handleOpenEvent = (ev) => {
+    setPinInput('');
+    setPinError('');
+    setActiveEvent(ev);
+    syncUrlEventParam(ev.id);
+
+    if (ev.requiresPin === false) {
+      setUnlockedEvents({ [ev.id]: true });
+      trackEventView(ev.id);
+    } else {
+      setUnlockedEvents({});
+    }
+  };
+
+  const loadEvents = async (autoOpenDeepLink = false) => {
     setLoadingEvents(true);
     try {
       const data = await getEvents();
       setEvents(data);
+
+      if (autoOpenDeepLink) {
+        const params = new URLSearchParams(window.location.search);
+        const deepEventId = params.get('evento');
+        if (deepEventId) {
+          const matched = data.find(
+            (ev) => String(ev.id) === String(deepEventId) && ev.isActive !== false
+          );
+          if (matched) {
+            setCurrentPage('gallery');
+            handleOpenEvent(matched);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error cargando eventos:', error);
     } finally {
@@ -63,10 +113,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadEvents();
+    loadEvents(true);
   }, []);
 
-  // Reinicia la paginación cada vez que cambian los filtros o el texto de búsqueda
   useEffect(() => {
     setVisibleEventsCount(EVENTS_PER_PAGE);
   }, [selectedCategory, selectedSubcategory, searchQuery]);
@@ -137,17 +186,6 @@ export default function App() {
     setSelectedSubcategory('Todos');
   };
 
-  const handleOpenEvent = (ev) => {
-    setPinInput('');
-    setPinError('');
-    setActiveEvent(ev);
-    if (ev.requiresPin === false) {
-      setUnlockedEvents({ [ev.id]: true });
-    } else {
-      setUnlockedEvents({});
-    }
-  };
-
   const handleCloseEvent = () => {
     setActiveEvent(null);
     setUnlockedEvents({});
@@ -156,12 +194,25 @@ export default function App() {
     setZoomPhotoIndex(null);
     setIsCheckoutOpen(false);
     setIsPrivacyShieldActive(false);
+    syncUrlEventParam(null);
   };
 
   const handleNavigate = (page) => {
     handleCloseEvent();
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleShareEventLink = async (e, ev) => {
+    if (e) e.stopPropagation();
+    const shareUrl = `${window.location.origin}/?evento=${ev.id}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedEventId(ev.id);
+      setTimeout(() => setCopiedEventId(null), 2500);
+    } catch {
+      window.prompt('Copia este enlace directo de la galería:', shareUrl);
+    }
   };
 
   const handleUnlock = async (e) => {
@@ -196,13 +247,12 @@ export default function App() {
     return (
       <AdminPanel
         events={events}
-        onEventsUpdated={loadEvents}
+        onEventsUpdated={() => loadEvents(false)}
         onClose={() => setIsAdminOpen(false)}
       />
     );
   }
 
-  // Barra de Navegación Compartida (Inicio + Galería de Clientes + Admin)
   const renderNavbar = () => (
     <header className="bg-white/95 backdrop-blur-xs border-b border-neutral-200 sticky top-0 z-30">
       <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-2">
@@ -256,7 +306,7 @@ export default function App() {
     </header>
   );
 
-  // VISTA 0: Página de Inicio / Portafolio
+  // VISTA 0: Página de Inicio / Portafolio (Intacta)
   if (currentPage === 'home' && !activeEvent) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] text-neutral-900 flex flex-col">
@@ -267,7 +317,7 @@ export default function App() {
     );
   }
 
-  // VISTA 1: Catálogo Público de Eventos y Sesiones con Paginación
+  // VISTA 1: Catálogo Público de Eventos y Sesiones
   if (!activeEvent) {
     const activeCatObj = CATEGORY_STRUCTURE.find((c) => c.name === selectedCategory);
     const subcategories = activeCatObj ? activeCatObj.subcategories : [];
@@ -423,6 +473,7 @@ export default function App() {
                   const isPrivate = ev.requiresPin !== false;
                   const dateBadge = parseEventDateBadge(ev.date);
                   const tagLabel = ev.subcategory || ev.category;
+                  const isCopied = copiedEventId === ev.id;
 
                   return (
                     <div
@@ -450,21 +501,47 @@ export default function App() {
                           </div>
                         </div>
 
-                        {isPrivate ? (
-                          <span className="bg-zinc-900/80 backdrop-blur-xs border border-white/15 text-white text-[11px] font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1">
-                            <Lock className="w-3 h-3 text-slate-300" /> Privado
-                          </span>
-                        ) : (
-                          <span className="bg-emerald-600/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 shadow-xs">
-                            <Unlock className="w-3 h-3" /> Público
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => handleShareEventLink(e, ev)}
+                            title="Copiar enlace directo de esta galería"
+                            className="bg-zinc-900/80 hover:bg-amber-500 hover:text-zinc-950 backdrop-blur-xs border border-white/15 text-white text-[11px] font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1 transition"
+                          >
+                            {isCopied ? (
+                              <>
+                                <Check className="w-3 h-3" /> Copiado
+                              </>
+                            ) : (
+                              <>
+                                <Share2 className="w-3 h-3" /> Link
+                              </>
+                            )}
+                          </button>
+
+                          {isPrivate ? (
+                            <span className="bg-zinc-900/80 backdrop-blur-xs border border-white/15 text-white text-[11px] font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                              <Lock className="w-3 h-3 text-slate-300" /> Privado
+                            </span>
+                          ) : (
+                            <span className="bg-emerald-600/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 shadow-xs">
+                              <Unlock className="w-3 h-3" /> Público
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="absolute inset-x-0 bottom-0 p-5 flex flex-col justify-end text-white">
-                        <span className="text-[11px] font-extrabold uppercase tracking-widest text-amber-400 mb-1">
-                          {tagLabel}
-                        </span>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[11px] font-extrabold uppercase tracking-widest text-amber-400">
+                            {tagLabel}
+                          </span>
+                          {ev.volumeDiscountEnabled && ev.volumeDiscountPercent > 0 && (
+                            <span className="text-[10px] font-bold bg-amber-500/20 border border-amber-400/40 text-amber-300 px-2 py-0.5 rounded-full">
+                              -{ev.volumeDiscountPercent}% x {ev.volumeDiscountMinPhotos}+ fotos
+                            </span>
+                          )}
+                        </div>
 
                         <h2 className="font-bold text-xl leading-snug text-white line-clamp-2">
                           {ev.title}
@@ -509,7 +586,6 @@ export default function App() {
                 })}
               </div>
 
-              {/* Botón de Paginación: Cargar más eventos */}
               {hasMoreEvents && (
                 <div className="mt-10 flex flex-col items-center gap-2">
                   <button
@@ -576,7 +652,7 @@ export default function App() {
             onClick={handleCloseEvent}
             className="mt-4 text-xs text-neutral-500 hover:text-neutral-950 inline-flex items-center gap-1"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> Volver a eventos
+            <ArrowLeft className="w-3.5 h-3.5" /> Ver todos los eventos
           </button>
         </div>
       </div>
@@ -584,9 +660,7 @@ export default function App() {
   }
 
   // VISTA 3: Galería de Selección del Evento
-  const isPayPerPhoto = activeEvent.includedPhotos === 0;
-  const extraCount = Math.max(0, selectedIds.length - activeEvent.includedPhotos);
-  const extraCost = extraCount * activeEvent.extraPhotoPrice;
+  const pricing = calculateOrderPricing(activeEvent, selectedIds.length);
   const displayedPhotos = onlySelectedFilter
     ? activeEvent.photos.filter((p) => selectedIds.includes(p.id))
     : activeEvent.photos;
@@ -611,25 +685,45 @@ export default function App() {
       )}
 
       <header className="bg-white/95 backdrop-blur-xs border-b border-neutral-200 sticky top-0 z-30">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
           <button
             onClick={handleCloseEvent}
             className="flex items-center gap-1.5 text-sm font-semibold text-neutral-700 hover:text-neutral-950"
           >
             <ArrowLeft className="w-4 h-4" /> Eventos
           </button>
+
           <StudioLogo className="scale-90" />
-          <button
-            onClick={() => setIsCheckoutOpen(true)}
-            className="relative p-2 text-neutral-950"
-          >
-            <ShoppingBag className="w-5 h-5" />
-            {selectedIds.length > 0 && (
-              <span className="absolute top-0.5 right-0.5 bg-amber-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                {selectedIds.length}
-              </span>
-            )}
-          </button>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => handleShareEventLink(e, activeEvent)}
+              className="px-2.5 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-bold inline-flex items-center gap-1 transition"
+            >
+              {copiedEventId === activeEvent.id ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" /> Copiado
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5" /> Compartir
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={() => setIsCheckoutOpen(true)}
+              className="relative p-2 text-neutral-950"
+            >
+              <ShoppingBag className="w-5 h-5" />
+              {selectedIds.length > 0 && (
+                <span className="absolute top-0.5 right-0.5 bg-amber-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {selectedIds.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -642,8 +736,8 @@ export default function App() {
           Toca una fotografía para seleccionarla o usa la lupa para verla en detalle.
         </p>
 
-        <div className="mt-4 bg-amber-50/80 border border-amber-200/80 rounded-xl p-3.5 text-xs text-neutral-700 flex items-center justify-between">
-          {isPayPerPhoto ? (
+        <div className="mt-4 bg-amber-50/80 border border-amber-200/80 rounded-xl p-3.5 text-xs text-neutral-700 space-y-1.5">
+          {pricing.isPayPerPhoto ? (
             <div>
               <span className="font-bold text-amber-800">
                 Galería de selección individual.
@@ -658,6 +752,16 @@ export default function App() {
               </span>{' '}
               Cada foto adicional tiene un valor de{' '}
               <span className="font-bold">{formatCOP(activeEvent.extraPhotoPrice)}</span>.
+            </div>
+          )}
+
+          {pricing.discountEnabled && pricing.minPhotos > 0 && pricing.discountPercent > 0 && (
+            <div className="flex items-center gap-1.5 text-emerald-800 font-semibold pt-1 border-t border-amber-200/60">
+              <Tag className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+              <span>
+                Promoción activa: Lleva {pricing.minPhotos} o más fotos y obtén{' '}
+                {pricing.discountPercent}% de descuento automático.
+              </span>
             </div>
           )}
         </div>
@@ -720,16 +824,23 @@ export default function App() {
             onClick={() => selectedIds.length > 0 && setIsCheckoutOpen(true)}
             className={selectedIds.length > 0 ? 'cursor-pointer' : ''}
           >
-            {isPayPerPhoto ? (
+            {pricing.isPayPerPhoto ? (
               <>
-                <div className="text-xs font-bold text-neutral-900">
-                  {selectedIds.length}{' '}
-                  {selectedIds.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}
+                <div className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
+                  <span>
+                    {selectedIds.length}{' '}
+                    {selectedIds.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}
+                  </span>
+                  {pricing.qualifiesForDiscount && (
+                    <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full">
+                      -{pricing.discountPercent}% OFF
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-neutral-500">
                   Total a pagar:{' '}
                   <span className="font-bold text-amber-700 text-sm">
-                    {formatCOP(extraCost)}
+                    {formatCOP(pricing.finalTotal)}
                   </span>
                 </div>
               </>
@@ -737,16 +848,16 @@ export default function App() {
               <>
                 <div className="text-xs font-bold text-neutral-900">
                   {selectedIds.length} / {activeEvent.includedPhotos} incluidas
-                  {extraCount > 0 && (
+                  {pricing.billableCount > 0 && (
                     <span className="ml-1.5 text-amber-600 font-extrabold">
-                      (+{extraCount} extras)
+                      (+{pricing.billableCount} extras)
                     </span>
                   )}
                 </div>
                 <div className="text-xs text-neutral-500">
                   Adicional a pagar:{' '}
                   <span className="font-bold text-amber-700 text-sm">
-                    {formatCOP(extraCost)}
+                    {formatCOP(pricing.finalTotal)}
                   </span>
                 </div>
               </>
