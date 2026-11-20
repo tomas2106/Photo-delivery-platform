@@ -13,6 +13,7 @@ import {
   Search,
   X,
   ShieldAlert,
+  ChevronDown,
 } from 'lucide-react';
 import { getEvents, unlockEventGallery } from './services/eventService';
 import { CATEGORY_STRUCTURE, STUDIO_CONFIG } from './data/eventsData';
@@ -25,6 +26,8 @@ import AdminPanel from './components/AdminPanel';
 import StudioLogo from './components/StudioLogo';
 import HomeView from './components/HomeView';
 
+const EVENTS_PER_PAGE = 9;
+
 export default function App() {
   const [currentPage, setCurrentPage] = useState('home'); // 'home' | 'gallery'
   const [events, setEvents] = useState([]);
@@ -32,6 +35,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [selectedSubcategory, setSelectedSubcategory] = useState('Todos');
   const [searchQuery, setSearchQuery] = useState('');
+  const [visibleEventsCount, setVisibleEventsCount] = useState(EVENTS_PER_PAGE);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
 
   const [activeEvent, setActiveEvent] = useState(null);
@@ -61,6 +65,11 @@ export default function App() {
   useEffect(() => {
     loadEvents();
   }, []);
+
+  // Reinicia la paginación cada vez que cambian los filtros o el texto de búsqueda
+  useEffect(() => {
+    setVisibleEventsCount(EVENTS_PER_PAGE);
+  }, [selectedCategory, selectedSubcategory, searchQuery]);
 
   useEffect(() => {
     if (!activeEvent || !unlockedEvents[activeEvent.id]) {
@@ -258,7 +267,7 @@ export default function App() {
     );
   }
 
-  // VISTA 1: Catálogo Público de Eventos y Sesiones
+  // VISTA 1: Catálogo Público de Eventos y Sesiones con Paginación
   if (!activeEvent) {
     const activeCatObj = CATEGORY_STRUCTURE.find((c) => c.name === selectedCategory);
     const subcategories = activeCatObj ? activeCatObj.subcategories : [];
@@ -287,11 +296,15 @@ export default function App() {
       return true;
     });
 
+    const paginatedEvents = filteredEvents.slice(0, visibleEventsCount);
+    const hasMoreEvents = filteredEvents.length > visibleEventsCount;
+    const remainingEventsCount = filteredEvents.length - visibleEventsCount;
+
     return (
       <div className="min-h-screen bg-[#FAFAFA] text-neutral-900 flex flex-col">
         {renderNavbar()}
 
-        <main className="max-w-5xl w-full mx-auto px-4 pt-8 flex-1">
+        <main className="max-w-5xl w-full mx-auto px-4 pt-8 pb-12 flex-1">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-neutral-950">Eventos y Sesiones</h1>
@@ -404,96 +417,118 @@ export default function App() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-3">
-              {filteredEvents.map((ev) => {
-                const isPrivate = ev.requiresPin !== false;
-                const dateBadge = parseEventDateBadge(ev.date);
-                const tagLabel = ev.subcategory || ev.category;
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-3">
+                {paginatedEvents.map((ev) => {
+                  const isPrivate = ev.requiresPin !== false;
+                  const dateBadge = parseEventDateBadge(ev.date);
+                  const tagLabel = ev.subcategory || ev.category;
 
-                return (
-                  <div
-                    key={ev.id}
-                    onClick={() => handleOpenEvent(ev)}
-                    onContextMenu={(e) => e.preventDefault()}
-                    className="relative rounded-3xl overflow-hidden bg-zinc-950 aspect-[3/4] border border-neutral-200/80 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group select-none"
+                  return (
+                    <div
+                      key={ev.id}
+                      onClick={() => handleOpenEvent(ev)}
+                      onContextMenu={(e) => e.preventDefault()}
+                      className="relative rounded-3xl overflow-hidden bg-zinc-950 aspect-[3/4] border border-neutral-200/80 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group select-none"
+                    >
+                      <img
+                        src={ev.coverImage}
+                        alt={ev.title}
+                        draggable={false}
+                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500 pointer-events-none"
+                      />
+
+                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-black/20" />
+
+                      <div className="absolute top-4 inset-x-4 flex items-start justify-between gap-2">
+                        <div className="bg-zinc-950/85 backdrop-blur-md border border-white/15 border-l-4 border-l-amber-500 rounded-r-xl rounded-l-sm px-3 py-1.5 text-white shadow-lg">
+                          <div className="text-xl font-black leading-none tracking-tight">
+                            {dateBadge.day}
+                          </div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400 mt-1 leading-none">
+                            {dateBadge.month} {dateBadge.year}
+                          </div>
+                        </div>
+
+                        {isPrivate ? (
+                          <span className="bg-zinc-900/80 backdrop-blur-xs border border-white/15 text-white text-[11px] font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-slate-300" /> Privado
+                          </span>
+                        ) : (
+                          <span className="bg-emerald-600/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 shadow-xs">
+                            <Unlock className="w-3 h-3" /> Público
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="absolute inset-x-0 bottom-0 p-5 flex flex-col justify-end text-white">
+                        <span className="text-[11px] font-extrabold uppercase tracking-widest text-amber-400 mb-1">
+                          {tagLabel}
+                        </span>
+
+                        <h2 className="font-bold text-xl leading-snug text-white line-clamp-2">
+                          {ev.title}
+                        </h2>
+
+                        <div className="flex items-center gap-1.5 text-xs text-zinc-300 mt-2">
+                          <MapPin className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                          <span className="truncate">{ev.location}</span>
+                        </div>
+
+                        <div className="mt-4 pt-3.5 border-t border-white/15 flex items-center justify-between gap-3">
+                          <div className="text-xs">
+                            {ev.includedPhotos === 0 ? (
+                              <>
+                                <p className="font-bold text-white">
+                                  Desde {formatCOP(ev.extraPhotoPrice)}
+                                </p>
+                                <p className="text-[11px] text-zinc-400">
+                                  Selección individual
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="font-bold text-white">
+                                  Paquete {ev.includedPhotos} fotos
+                                </p>
+                                <p className="text-[11px] text-zinc-400">
+                                  Extra {formatCOP(ev.extraPhotoPrice)} c/u
+                                </p>
+                              </>
+                            )}
+                          </div>
+
+                          <span className="px-3.5 py-2 rounded-xl bg-white text-zinc-950 group-hover:bg-amber-500 group-hover:text-zinc-950 font-bold text-xs inline-flex items-center gap-1 transition-colors shrink-0 shadow-sm">
+                            Abrir
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Botón de Paginación: Cargar más eventos */}
+              {hasMoreEvents && (
+                <div className="mt-10 flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVisibleEventsCount((prev) => prev + EVENTS_PER_PAGE)
+                    }
+                    className="px-6 py-3 rounded-xl bg-white hover:bg-neutral-50 border border-neutral-300 text-neutral-900 font-bold text-xs inline-flex items-center gap-2 shadow-2xs transition"
                   >
-                    <img
-                      src={ev.coverImage}
-                      alt={ev.title}
-                      draggable={false}
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500 pointer-events-none"
-                    />
-
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-black/20" />
-
-                    <div className="absolute top-4 inset-x-4 flex items-start justify-between gap-2">
-                      <div className="bg-zinc-950/85 backdrop-blur-md border border-white/15 border-l-4 border-l-amber-500 rounded-r-xl rounded-l-sm px-3 py-1.5 text-white shadow-lg">
-                        <div className="text-xl font-black leading-none tracking-tight">
-                          {dateBadge.day}
-                        </div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400 mt-1 leading-none">
-                          {dateBadge.month} {dateBadge.year}
-                        </div>
-                      </div>
-
-                      {isPrivate ? (
-                        <span className="bg-zinc-900/80 backdrop-blur-xs border border-white/15 text-white text-[11px] font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1">
-                          <Lock className="w-3 h-3 text-slate-300" /> Privado
-                        </span>
-                      ) : (
-                        <span className="bg-emerald-600/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 shadow-xs">
-                          <Unlock className="w-3 h-3" /> Público
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="absolute inset-x-0 bottom-0 p-5 flex flex-col justify-end text-white">
-                      <span className="text-[11px] font-extrabold uppercase tracking-widest text-amber-400 mb-1">
-                        {tagLabel}
-                      </span>
-
-                      <h2 className="font-bold text-xl leading-snug text-white line-clamp-2">
-                        {ev.title}
-                      </h2>
-
-                      <div className="flex items-center gap-1.5 text-xs text-zinc-300 mt-2">
-                        <MapPin className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                        <span className="truncate">{ev.location}</span>
-                      </div>
-
-                      <div className="mt-4 pt-3.5 border-t border-white/15 flex items-center justify-between gap-3">
-                        <div className="text-xs">
-                          {ev.includedPhotos === 0 ? (
-                            <>
-                              <p className="font-bold text-white">
-                                Desde {formatCOP(ev.extraPhotoPrice)}
-                              </p>
-                              <p className="text-[11px] text-zinc-400">
-                                Selección individual
-                              </p>
-                            </>
-                          ) : (
-                            <>
-                              <p className="font-bold text-white">
-                                Paquete {ev.includedPhotos} fotos
-                              </p>
-                              <p className="text-[11px] text-zinc-400">
-                                Extra {formatCOP(ev.extraPhotoPrice)} c/u
-                              </p>
-                            </>
-                          )}
-                        </div>
-
-                        <span className="px-3.5 py-2 rounded-xl bg-white text-zinc-950 group-hover:bg-amber-500 group-hover:text-zinc-950 font-bold text-xs inline-flex items-center gap-1 transition-colors shrink-0 shadow-sm">
-                          Abrir
-                          <ArrowUpRight className="w-3.5 h-3.5" />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                    Ver más eventos ({remainingEventsCount}{' '}
+                    {remainingEventsCount === 1 ? 'restante' : 'restantes'})
+                    <ChevronDown className="w-4 h-4 text-amber-600" />
+                  </button>
+                  <span className="text-[11px] text-neutral-400">
+                    Mostrando {paginatedEvents.length} de {filteredEvents.length} eventos
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </main>
 
