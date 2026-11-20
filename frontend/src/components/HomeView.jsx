@@ -12,6 +12,8 @@ import {
   CalendarCheck,
   Clock,
   MapPin,
+  HelpCircle,
+  ChevronDown,
 } from 'lucide-react';
 import { PORTFOLIO_DATA, PORTFOLIO_PHOTOS } from '../data/portfolioData';
 import { STUDIO_CONFIG } from '../data/eventsData';
@@ -49,6 +51,29 @@ const COVERAGE_DURATIONS = [
   'Fin de semana completo',
 ];
 
+const FAQ_ITEMS = [
+  {
+    question: '¿Las fotografías finales se entregan sin marca de agua y en alta calidad?',
+    answer:
+      'Sí. Las imágenes en la galería web son muestras optimizadas con marca de agua protectora. Una vez confirmado el pago, recibes tus fotografías originales en máxima resolución (300 ppp), sin marcas de agua y listas para redes sociales o impresión.',
+  },
+  {
+    question: '¿Por qué medio y en cuánto tiempo recibo mis fotos?',
+    answer:
+      'Una vez envías tu selección desde el carrito de la web y confirmas el pago por WhatsApp, te entregamos tus archivos originales a través de una carpeta privada de Google Drive o directamente como documento por WhatsApp (sin pérdida de calidad) en menos de 24 horas.',
+  },
+  {
+    question: '¿Cómo funcionan los descuentos por volumen en eventos deportivos?',
+    answer:
+      'En los eventos habilitados con promoción, al seleccionar la cantidad mínima indicada en la galería, el carrito aplica automáticamente el porcentaje de descuento sobre el valor total antes de enviar tu pedido.',
+  },
+  {
+    question: '¿Realizas cubrimiento para clubes, válidas completas o eventos empresariales?',
+    answer:
+      'Sí. Contamos con planes por horas, media jornada o jornada completa para torneos de fútbol, válidas de motociclismo y eventos corporativos o sociales en Colombia, con entrega de galería digital dedicada para los participantes.',
+  },
+];
+
 export default function HomeView({ onGoToGallery }) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -58,6 +83,9 @@ export default function HomeView({ onGoToGallery }) {
   const [quoteDuration, setQuoteDuration] = useState(COVERAGE_DURATIONS[1]);
   const [quoteCity, setQuoteCity] = useState('');
   const [quoteDate, setQuoteDate] = useState('');
+
+  // Estado del Acordeón de Preguntas Frecuentes
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
 
   const touchStartX = useRef(null);
   const touchEndX = useRef(null);
@@ -577,6 +605,50 @@ export default function HomeView({ onGoToGallery }) {
                 Solicitar disponibilidad por WhatsApp
               </a>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SECCIÓN 6: PREGUNTAS FRECUENTES (FAQ) */}
+      <section className="max-w-5xl mx-auto px-4 pt-4 pb-16">
+        <div className="bg-white rounded-3xl border border-neutral-200 p-7 sm:p-10 shadow-2xs">
+          <div className="max-w-2xl mb-7">
+            <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-amber-700">
+              <HelpCircle className="w-3.5 h-3.5" />
+              Preguntas Frecuentes
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-neutral-950 mt-1">
+              Todo claro antes de tu compra o cobertura
+            </h2>
+          </div>
+
+          <div className="divide-y divide-neutral-200/80">
+            {FAQ_ITEMS.map((item, idx) => {
+              const isOpen = openFaqIndex === idx;
+              return (
+                <div key={idx} className="py-4 first:pt-0 last:pb-0">
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaqIndex(isOpen ? -1 : idx)}
+                    className="w-full flex items-center justify-between gap-4 text-left py-1 focus:outline-none group"
+                  >
+                    <span className="text-sm sm:text-base font-bold text-neutral-900 group-hover:text-amber-700 transition">
+                      {item.question}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-neutral-500 shrink-0 transition-transform duration-200 ${
+                        isOpen ? 'rotate-180 text-amber-600' : ''
+                      }`}
+                    />
+                  </button>
+                  {isOpen && (
+                    <p className="text-xs sm:text-sm text-neutral-600 mt-2.5 leading-relaxed pr-6">
+                      {item.answer}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
