@@ -14,13 +14,33 @@ export default function CheckoutDrawer({
   const [clientName, setClientName] = useState('');
   const [copied, setCopied] = useState(false);
 
-  // Bloquea el scroll del fondo mientras el modal está abierto
+  // Bloqueo estricto de scroll en móviles (iOS Safari + Android Chrome) y escritorio
   useEffect(() => {
     if (!isOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const html = document.documentElement;
+
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyPosition = body.style.position;
+    const prevBodyTop = body.style.top;
+    const prevBodyWidth = body.style.width;
+    const prevHtmlOverflow = html.style.overflow;
+
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.width = '100%';
+
     return () => {
-      document.body.style.overflow = previousOverflow;
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      body.style.position = prevBodyPosition;
+      body.style.top = prevBodyTop;
+      body.style.width = prevBodyWidth;
+      window.scrollTo(0, scrollY);
     };
   }, [isOpen]);
 
@@ -51,14 +71,18 @@ export default function CheckoutDrawer({
   return (
     <div
       onContextMenu={(e) => e.preventDefault()}
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center select-none"
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center select-none overscroll-none"
     >
-      <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 max-h-[88dvh] flex flex-col shadow-2xl">
-        {/* Cabecera fija */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3.5 shrink-0">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 max-h-[85dvh] flex flex-col shadow-2xl overflow-hidden"
+      >
+        {/* Cabecera fija (no arrastra el fondo al tocarla) */}
+        <div className="flex items-center justify-between border-b border-neutral-100 pb-3.5 shrink-0 touch-none">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">Resumen de Selección</h3>
-            <p className="text-xs text-slate-500">
+            <h3 className="text-lg font-bold text-neutral-950">Resumen de Selección</h3>
+            <p className="text-xs text-neutral-500">
               {totalSelected} {totalSelected === 1 ? 'foto elegida' : 'fotos elegidas'}
             </p>
           </div>
@@ -75,17 +99,20 @@ export default function CheckoutDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-full hover:bg-slate-100"
+              className="p-1.5 rounded-full hover:bg-neutral-100"
             >
-              <X className="w-5 h-5 text-slate-500" />
+              <X className="w-5 h-5 text-neutral-500" />
             </button>
           </div>
         </div>
 
-        {/* Contenido con scroll fluido único */}
-        <div className="py-4 space-y-4 overflow-y-auto overscroll-contain flex-1 pr-0.5">
+        {/* Único contenedor desplazable interno */}
+        <div
+          style={{ WebkitOverflowScrolling: 'touch' }}
+          className="py-4 space-y-4 overflow-y-auto overscroll-y-contain flex-1 min-h-0 pr-0.5"
+        >
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-neutral-700 mb-1">
               Tu nombre completo *
             </label>
             <input
@@ -93,21 +120,21 @@ export default function CheckoutDrawer({
               placeholder="Ej. Camilo Andrés Pérez"
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm select-text focus:outline-none focus:border-[#0284C7]"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-sm select-text focus:outline-none focus:border-neutral-900"
             />
           </div>
 
           {/* Resumen financiero */}
-          <div className="bg-slate-50 rounded-xl p-4 space-y-2 text-sm border border-slate-100">
+          <div className="bg-neutral-50 rounded-xl p-4 space-y-2 text-sm border border-neutral-200/70">
             {!isPayPerPhoto && (
-              <div className="flex justify-between text-slate-600">
+              <div className="flex justify-between text-neutral-600">
                 <span>Fotos incluidas en contrato:</span>
-                <span className="font-semibold text-slate-900">
+                <span className="font-semibold text-neutral-950">
                   {includedCount} / {event.includedPhotos}
                 </span>
               </div>
             )}
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between text-neutral-600">
               <span>
                 {isPayPerPhoto
                   ? `Fotos seleccionadas (${formatCOP(event.extraPhotoPrice)} c/u):`
@@ -117,23 +144,23 @@ export default function CheckoutDrawer({
                 {isPayPerPhoto ? totalSelected : `+${extraCount}`}
               </span>
             </div>
-            <div className="border-t border-slate-200 pt-2 flex justify-between text-base font-bold text-slate-900">
+            <div className="border-t border-neutral-200 pt-2 flex justify-between text-base font-bold text-neutral-950">
               <span>{isPayPerPhoto ? 'Total a pagar:' : 'Valor adicional a pagar:'}</span>
-              <span className="text-[#0284C7]">{formatCOP(extraTotal)}</span>
+              <span className="text-amber-700">{formatCOP(extraTotal)}</span>
             </div>
           </div>
 
           {/* Galería visual protegida de fotos seleccionadas */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-700">
+              <span className="text-xs font-semibold text-neutral-700">
                 Fotos en tu selección ({totalSelected}):
               </span>
               {totalSelected > 0 && (
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="text-xs text-[#0284C7] font-medium flex items-center gap-1 hover:underline"
+                  className="text-xs text-amber-700 font-semibold flex items-center gap-1 hover:underline"
                 >
                   {copied ? (
                     <CheckCircle2 className="w-3.5 h-3.5" />
@@ -146,7 +173,7 @@ export default function CheckoutDrawer({
             </div>
 
             {totalSelected === 0 ? (
-              <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-6 text-center text-xs text-slate-500">
+              <div className="bg-neutral-50 border border-dashed border-neutral-300 rounded-xl p-6 text-center text-xs text-neutral-500">
                 No tienes fotos seleccionadas en este momento.
               </div>
             ) : (
@@ -157,7 +184,7 @@ export default function CheckoutDrawer({
                     <div
                       key={photo.id}
                       onContextMenu={(e) => e.preventDefault()}
-                      className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900 aspect-square group"
+                      className="relative rounded-xl overflow-hidden border border-neutral-200 bg-neutral-900 aspect-square group"
                     >
                       <img
                         src={photo.url}
@@ -166,7 +193,7 @@ export default function CheckoutDrawer({
                         className="w-full h-full object-cover pointer-events-none select-none"
                       />
 
-                      {/* Marca de agua protectora sobre cada miniatura */}
+                      {/* Marca de agua protectora */}
                       <div
                         aria-hidden="true"
                         className="absolute inset-0 pointer-events-none overflow-hidden flex flex-col justify-center gap-3 opacity-45"
@@ -205,7 +232,7 @@ export default function CheckoutDrawer({
         </div>
 
         {/* Botón WhatsApp fijo abajo */}
-        <div className="pt-3 border-t border-slate-100 shrink-0">
+        <div className="pt-3 border-t border-neutral-100 shrink-0 touch-none">
           <a
             href={totalSelected > 0 ? url : '#'}
             target="_blank"
@@ -216,7 +243,7 @@ export default function CheckoutDrawer({
             className={`w-full py-3.5 rounded-xl font-bold text-white flex items-center justify-center gap-2 shadow-lg transition ${
               totalSelected > 0
                 ? 'bg-[#25D366] hover:bg-[#1ebe5d]'
-                : 'bg-slate-300 cursor-not-allowed'
+                : 'bg-neutral-300 cursor-not-allowed'
             }`}
           >
             <Send className="w-5 h-5" />
