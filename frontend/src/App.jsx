@@ -36,10 +36,16 @@ import Footer from './components/Footer';
 import AdminPanel from './components/AdminPanel';
 import StudioLogo from './components/StudioLogo';
 import HomeView from './components/HomeView';
+import DeliveryPortal from './components/DeliveryPortal';
 
 const EVENTS_PER_PAGE = 9;
 
 export default function App() {
+  const [deliveryToken, setDeliveryToken] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('entrega') || null;
+  });
+
   const [currentPage, setCurrentPage] = useState('home'); // 'home' | 'gallery'
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
@@ -64,6 +70,7 @@ export default function App() {
 
   const syncUrlEventParam = (eventId) => {
     const url = new URL(window.location.href);
+    url.searchParams.delete('entrega');
     if (eventId) {
       url.searchParams.set('evento', eventId);
     } else {
@@ -113,8 +120,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadEvents(true);
-  }, []);
+    if (!deliveryToken) {
+      loadEvents(true);
+    }
+  }, [deliveryToken]);
 
   useEffect(() => {
     setVisibleEventsCount(EVENTS_PER_PAGE);
@@ -243,6 +252,20 @@ export default function App() {
     setOnlySelectedFilter(false);
   };
 
+  // PORTAL DE ENTREGA DE FOTOS COMPRADAS (?entrega=TOKEN)
+  if (deliveryToken) {
+    return (
+      <DeliveryPortal
+        token={deliveryToken}
+        onBackToHome={() => {
+          setDeliveryToken(null);
+          syncUrlEventParam(null);
+          loadEvents(false);
+        }}
+      />
+    );
+  }
+
   if (isAdminOpen) {
     return (
       <AdminPanel
@@ -306,7 +329,6 @@ export default function App() {
     </header>
   );
 
-  // VISTA 0: Página de Inicio / Portafolio
   if (currentPage === 'home' && !activeEvent) {
     return (
       <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#FAFAFA] text-neutral-900 flex flex-col">
@@ -317,7 +339,6 @@ export default function App() {
     );
   }
 
-  // VISTA 1: Catálogo Público de Eventos y Sesiones
   if (!activeEvent) {
     const activeCatObj = CATEGORY_STRUCTURE.find((c) => c.name === selectedCategory);
     const subcategories = activeCatObj ? activeCatObj.subcategories : [];
@@ -633,7 +654,6 @@ export default function App() {
     );
   }
 
-  // VISTA 2: Acceso por PIN
   if (!unlockedEvents[activeEvent.id]) {
     return (
       <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#FAFAFA] flex flex-col items-center justify-center p-4">
@@ -679,7 +699,6 @@ export default function App() {
     );
   }
 
-  // VISTA 3: Galería de Selección del Evento
   const pricing = calculateOrderPricing(activeEvent, selectedIds.length);
   const displayedPhotos = onlySelectedFilter
     ? activeEvent.photos.filter((p) => selectedIds.includes(p.id))

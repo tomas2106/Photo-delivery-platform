@@ -17,6 +17,7 @@ export default function CheckoutDrawer({
   onClearAll,
 }) {
   const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -75,6 +76,7 @@ export default function CheckoutDrawer({
     registerOrder({
       eventId: event.id,
       clientName: clientName.trim() || 'Cliente',
+      clientPhone: clientPhone.trim(),
       photoIds: selectedPhotos.map((p) => p.id),
       photoCodes: selectedPhotos.map((p) => p.code),
       subtotalAmount: pricing.subtotal,
@@ -159,17 +161,32 @@ export default function CheckoutDrawer({
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1">
-              Tu nombre completo *
-            </label>
-            <input
-              type="text"
-              placeholder="Ej. Camilo Andrés Pérez"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-sm select-text focus:outline-none focus:border-neutral-900"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                Tu nombre completo *
+              </label>
+              <input
+                type="text"
+                placeholder="Ej. Camilo Andrés Pérez"
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-sm select-text focus:outline-none focus:border-neutral-900"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                Tu WhatsApp (para recibir link)
+              </label>
+              <input
+                type="tel"
+                placeholder="Ej. 300 123 4567"
+                value={clientPhone}
+                onChange={(e) => setClientPhone(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-sm select-text focus:outline-none focus:border-neutral-900"
+              />
+            </div>
           </div>
 
           <div className="bg-neutral-50 rounded-xl p-4 space-y-2 text-sm border border-neutral-200/70">

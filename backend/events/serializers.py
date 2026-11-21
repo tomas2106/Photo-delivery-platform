@@ -109,7 +109,6 @@ class FullEventSerializer(serializers.ModelSerializer):
         instance.save()
 
         if photos_data is not None:
-            # Preservar selection_count de fotos existentes si coinciden por URL
             existing_counts = {
                 p.url: p.selection_count for p in instance.photos.all()
             }
@@ -127,14 +126,20 @@ class FullEventSerializer(serializers.ModelSerializer):
 
 class OrderSerializer(serializers.ModelSerializer):
     id = serializers.CharField(read_only=True)
-    eventId = serializers.CharField(source='event.id', read_only=True)
-    eventTitle = serializers.CharField(source='event.title', read_only=True)
+    eventId = serializers.SerializerMethodField()
+    eventTitle = serializers.SerializerMethodField()
     clientName = serializers.CharField(source='client_name')
+    clientPhone = serializers.CharField(source='client_phone', required=False, allow_blank=True)
     photoCodes = serializers.ListField(source='photo_codes')
+    purchasedPhotos = serializers.ListField(source='purchased_photos', read_only=True)
     photosCount = serializers.IntegerField(source='photos_count')
     subtotalAmount = serializers.IntegerField(source='subtotal_amount')
     discountAmount = serializers.IntegerField(source='discount_amount')
     totalAmount = serializers.IntegerField(source='total_amount')
+    deliveryMode = serializers.CharField(source='delivery_mode')
+    deliveryToken = serializers.CharField(source='delivery_token', read_only=True)
+    deliveryEnabled = serializers.BooleanField(source='delivery_enabled')
+    downloadsCount = serializers.IntegerField(source='downloads_count', read_only=True)
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
 
     class Meta:
@@ -144,11 +149,25 @@ class OrderSerializer(serializers.ModelSerializer):
             'eventId',
             'eventTitle',
             'clientName',
+            'clientPhone',
             'photoCodes',
+            'purchasedPhotos',
             'photosCount',
             'subtotalAmount',
             'discountAmount',
             'totalAmount',
             'status',
+            'deliveryMode',
+            'deliveryToken',
+            'deliveryEnabled',
+            'downloadsCount',
             'createdAt',
         ]
+
+    def get_eventId(self, obj):
+        return str(obj.event.id) if obj.event else None
+
+    def get_eventTitle(self, obj):
+        if obj.event:
+            return obj.event.title
+        return obj.event_title_snapshot or 'Evento archivado'

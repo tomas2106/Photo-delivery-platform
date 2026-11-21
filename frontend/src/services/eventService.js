@@ -53,7 +53,7 @@ export const trackEventView = async (eventId) => {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch {
-    // Silencioso para no interrumpir la experiencia del cliente
+    // Silencioso
   }
 };
 
@@ -79,11 +79,11 @@ export const getAdminAnalytics = async () => {
   return response.json();
 };
 
-export const updateOrderStatus = async (orderId, status) => {
+export const updateOrderManage = async (orderId, payload) => {
   const response = await fetch(`${API_BASE_URL}/admin/orders/${orderId}/`, {
     method: 'PATCH',
     headers: getAdminHeaders(),
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error('Error al actualizar el pedido');
   return response.json();
@@ -96,6 +96,26 @@ export const deleteOrder = async (orderId) => {
   });
   if (!response.ok) throw new Error('Error al eliminar el pedido');
   return true;
+};
+
+export const getDeliveryOrder = async (token) => {
+  const response = await fetch(`${API_BASE_URL}/delivery/${token}/`);
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.detail || 'Enlace de entrega no disponible');
+  }
+  return response.json();
+};
+
+export const trackDeliveryDownload = async (token) => {
+  try {
+    await fetch(`${API_BASE_URL}/delivery/${token}/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch {
+    // Silencioso
+  }
 };
 
 export const createEvent = async (newEventData) => {
@@ -127,5 +147,5 @@ export const deleteEvent = async (eventId) => {
   });
 
   if (!response.ok) throw new Error('Error al eliminar evento');
-  return true;
+  return response.json();
 };
