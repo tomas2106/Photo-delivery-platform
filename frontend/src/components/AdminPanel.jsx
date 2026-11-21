@@ -414,30 +414,53 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     }
   };
 
+  // Actualiza localmente el pedido y los ingresos sin recargar ni saltar el scroll
+  const applyOrderUpdateLocally = (updatedOrder) => {
+    setAnalyticsData((prev) => {
+      if (!prev) return prev;
+      const updatedOrders = prev.orders.map((o) =>
+        o.id === updatedOrder.id ? updatedOrder : o
+      );
+
+      const paidRevenue = updatedOrders
+        .filter((o) => o.status === 'paid')
+        .reduce((acc, o) => acc + (o.totalAmount || 0), 0);
+      const quotedRevenue = updatedOrders
+        .filter((o) => o.status === 'pending')
+        .reduce((acc, o) => acc + (o.totalAmount || 0), 0);
+
+      return {
+        ...prev,
+        paidRevenue,
+        quotedRevenue,
+        orders: updatedOrders,
+      };
+    });
+  };
+
   const handleToggleOrderPaid = async (order) => {
     const nextStatus = order.status === 'paid' ? 'pending' : 'paid';
-    await updateOrderManage(order.id, {
+    const updatedOrder = await updateOrderManage(order.id, {
       status: nextStatus,
-      // Si se marca pendiente de nuevo, deshabilitamos el link por seguridad
       ...(nextStatus === 'pending' ? { deliveryEnabled: false } : {}),
     });
-    await loadAnalytics();
+    applyOrderUpdateLocally(updatedOrder);
   };
 
   const handleChangeDeliveryMode = async (order, mode) => {
-    if (mode === 'link') {
-      await updateOrderManage(order.id, {
-        deliveryMode: 'link',
-        deliveryEnabled: true,
-        status: 'paid',
-      });
-    } else {
-      await updateOrderManage(order.id, {
-        deliveryMode: 'manual',
-        deliveryEnabled: false,
-      });
-    }
-    await loadAnalytics();
+    const updatedOrder =
+      mode === 'link'
+        ? await updateOrderManage(order.id, {
+            deliveryMode: 'link',
+            deliveryEnabled: true,
+            status: 'paid',
+          })
+        : await updateOrderManage(order.id, {
+            deliveryMode: 'manual',
+            deliveryEnabled: false,
+          });
+
+    applyOrderUpdateLocally(updatedOrder);
   };
 
   const getDeliveryUrl = (token) => `${window.location.origin}/?entrega=${token}`;
@@ -475,9 +498,9 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   };
 
   const handleDeleteOrder = async (orderId) => {
-    if (window.confirm('¿Eliminar este registro de pedido?')) {
-      await deleteOrder(orderId);
-      await loadAnalytics();
+    if (window.confirm('¿Eliminar este registro de pedido? Se recalcularán las fotos más seleccionadas.')) {
+      const refreshedAnalytics = await deleteOrder(orderId);
+      setAnalyticsData(refreshedAnalytics);
     }
   };
 

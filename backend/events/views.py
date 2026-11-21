@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.db.models import F, Sum
+from django.db.models import F, Sum, Case, When, Value
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -167,11 +167,7 @@ def create_order(request):
     return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
 
-@api_view(['GET'])
-def admin_analytics(request):
-    if not is_valid_admin(request):
-        return Response({'detail': 'No autorizado'}, status=status.HTTP_401_UNAUTHORIZED)
-
+def build_analytics_payload():
     total_views = Event.objects.aggregate(total=Sum('views_count'))['total'] or 0
     quoted_revenue = Order.objects.filter(status='pending').aggregate(total=Sum('total_amount'))['total'] or 0
     paid_revenue = Order.objects.filter(status='paid').aggregate(total=Sum('total_amount'))['total'] or 0
@@ -180,7 +176,11 @@ def admin_analytics(request):
         'id', 'title', 'category', 'views_count'
     )
 
-    top_photos_qs = Photo.objects.filter(selection_count__gt=0).select_related('event').order_by('-selection_count')[:8]
+    top_photos_qs = (
+        Photo.objects.filter(selection_count__gt=0)
+        .select_related('event')
+        .order_by('-selection_count')[:8]
+    )
     top_photos = [
         {
             'id': str(p.id),
@@ -194,7 +194,7 @@ def admin_analytics(request):
 
     recent_orders = OrderSerializer(Order.objects.all()[:40], many=True).data
 
-    return Response({
+    return {
         'totalViews': total_views,
         'quotedRevenue': quoted_revenue,
         'paidRevenue': paid_revenue,
@@ -202,7 +202,15 @@ def admin_analytics(request):
         'topEvents': list(top_events),
         'topPhotos': top_photos,
         'orders': recent_orders,
-    })
+    }
+
+
+@api_view(['GET'])
+def admin_analytics(request):
+    if not is_valid_admin(request):
+        return Response({'detail': 'No autorizado'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    return Response(build_analytics_payload())
 
 
 @api_view(['PATCH', 'DELETE'])
@@ -232,13 +240,33 @@ def admin_order_manage(request, order_id):
         return Response(OrderSerializer(order).data)
 
     if request.method == 'DELETE':
-        # Si el evento padre ya no existe, limpiar sus fotos de Cloudinary al borrar la orden
-        if order.event is None and order.purchased_photos:
-            urls = [item.get('url') for item in order.purchased_photos if isinstance(item, dict) and item.get('url')]
-            delete_cloudinary_urls(urls)
+        # 1. Descontar selection_count en las fotos de esa orden para que no aparezcan como más pedidas
+        purchased_urls = [
+            item.get('url')
+            for item in (order.purchased_photos or [])
+            if isinstance(item, dict) and item.get('url')
+        ]
+
+        if order.event is not None:
+            if purchased_urls:
+                photos_qs = Photo.objects.filter(event=order.event, url__in=purchased_urls)
+            elif order.photo_codes:
+                photos_qs = Photo.objects.filter(event=order.event, code__in=order.photo_codes)
+            else:
+                photos_qs = Photo.objects.none()
+
+            photos_qs.update(
+                selection_count=Case(
+                    When(selection_count__gt=0, then=F('selection_count') - 1),
+                    default=Value(0),
+                )
+            )
+        elif purchased_urls:
+            # Si el evento padre ya fue eliminado, limpiar sus fotos de Cloudinary al borrar la orden
+            delete_cloudinary_urls(purchased_urls)
 
         order.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(build_analytics_payload(), status=status.HTTP_200_OK)
 
 
 @api_view(['GET', 'POST'])

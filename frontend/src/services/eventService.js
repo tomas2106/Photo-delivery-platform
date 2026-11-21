@@ -95,7 +95,7 @@ export const deleteOrder = async (orderId) => {
     headers: getAdminHeaders(),
   });
   if (!response.ok) throw new Error('Error al eliminar el pedido');
-  return true;
+  return response.json();
 };
 
 export const getDeliveryOrder = async (token) => {
