@@ -23,6 +23,9 @@ import {
   DollarSign,
   Copy,
   CheckCircle2,
+  Link2,
+  Send,
+  HardDrive,
 } from 'lucide-react';
 import { CATEGORY_STRUCTURE, STUDIO_CONFIG } from '../data/eventsData';
 import {
@@ -31,7 +34,7 @@ import {
   updateEvent,
   deleteEvent,
   getAdminAnalytics,
-  updateOrderStatus,
+  updateOrderManage,
   deleteOrder,
 } from '../services/eventService';
 import { formatCOP } from '../utils/formatters';
@@ -58,19 +61,17 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Pestaña activa del Admin: 'events' | 'analytics'
   const [activeTab, setActiveTab] = useState('events');
   const [analyticsData, setAnalyticsData] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [copiedOrderId, setCopiedOrderId] = useState(null);
+  const [copiedDeliveryId, setCopiedDeliveryId] = useState(null);
   const [copiedLinkId, setCopiedLinkId] = useState(null);
 
-  // Filtros y paginación de la lista de eventos registrados
   const [adminCategoryFilter, setAdminCategoryFilter] = useState('Todos');
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
   const [adminVisibleCount, setAdminVisibleCount] = useState(ADMIN_EVENTS_PER_PAGE);
 
-  // Estado de subida masiva a Cloudinary
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [uploadedItems, setUploadedItems] = useState([]);
@@ -87,7 +88,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const [includedPhotos, setIncludedPhotos] = useState(40);
   const [extraPhotoPrice, setExtraPhotoPrice] = useState(2000);
 
-  // Descuento por volumen por evento
   const [volumeDiscountEnabled, setVolumeDiscountEnabled] = useState(false);
   const [volumeDiscountMinPhotos, setVolumeDiscountMinPhotos] = useState(5);
   const [volumeDiscountPercent, setVolumeDiscountPercent] = useState(15);
@@ -391,7 +391,12 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   };
 
   const handleDelete = async (id, eventTitle) => {
-    if (window.confirm(`¿Seguro que deseas eliminar permanentemente "${eventTitle}"?`)) {
+    const confirmMsg =
+      `¿Seguro que deseas eliminar "${eventTitle}"?\n\n` +
+      `• Se borrarán de Cloudinary las fotos NO compradas ("relleno") para liberar almacenamiento.\n` +
+      `• Tus ingresos, historial de pedidos y links de descarga de fotos pagadas permanecerán intactos.`;
+
+    if (window.confirm(confirmMsg)) {
       await deleteEvent(id);
       if (editingEventId === id) resetForm();
       await onEventsUpdated();
@@ -411,8 +416,62 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
 
   const handleToggleOrderPaid = async (order) => {
     const nextStatus = order.status === 'paid' ? 'pending' : 'paid';
-    await updateOrderStatus(order.id, nextStatus);
+    await updateOrderManage(order.id, {
+      status: nextStatus,
+      // Si se marca pendiente de nuevo, deshabilitamos el link por seguridad
+      ...(nextStatus === 'pending' ? { deliveryEnabled: false } : {}),
+    });
     await loadAnalytics();
+  };
+
+  const handleChangeDeliveryMode = async (order, mode) => {
+    if (mode === 'link') {
+      await updateOrderManage(order.id, {
+        deliveryMode: 'link',
+        deliveryEnabled: true,
+        status: 'paid',
+      });
+    } else {
+      await updateOrderManage(order.id, {
+        deliveryMode: 'manual',
+        deliveryEnabled: false,
+      });
+    }
+    await loadAnalytics();
+  };
+
+  const getDeliveryUrl = (token) => `${window.location.origin}/?entrega=${token}`;
+
+  const handleCopyDeliveryLink = async (order) => {
+    const deliveryUrl = getDeliveryUrl(order.deliveryToken);
+    try {
+      await navigator.clipboard.writeText(deliveryUrl);
+      setCopiedDeliveryId(order.id);
+      setTimeout(() => setCopiedDeliveryId(null), 2500);
+    } catch {
+      window.prompt('Enlace de descarga del cliente:', deliveryUrl);
+    }
+  };
+
+  const buildDeliveryWhatsAppUrl = (order) => {
+    const deliveryUrl = getDeliveryUrl(order.deliveryToken);
+    const cleanClientPhone = String(order.clientPhone || '').replace(/\D/g, '');
+    const formattedPhone =
+      cleanClientPhone.length === 10 ? `57${cleanClientPhone}` : cleanClientPhone;
+
+    const msg = [
+      `¡Hola *${order.clientName}*! 👋`,
+      `Tu pago por las fotografías del evento *${order.eventTitle}* ha sido confirmado.`,
+      '',
+      `Descarga tus *${order.photosCount} fotos* en alta calidad y sin marca de agua aquí:`,
+      deliveryUrl,
+      '',
+      `¡Gracias por confiar en *${STUDIO_CONFIG.name}*!`,
+    ].join('\n');
+
+    return formattedPhone
+      ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
   };
 
   const handleDeleteOrder = async (orderId) => {
@@ -522,7 +581,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5" />
-              <span>Stats</span>
+              <span>Stats y Entregas</span>
             </button>
             <button
               onClick={handleExitToPublic}
@@ -535,7 +594,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
         </div>
       </header>
 
-      {/* PESTAÑA DE ESTADÍSTICAS E INGRESOS */}
+      {/* PESTAÑA DE ESTADÍSTICAS, INGRESOS Y ENTREGAS */}
       {activeTab === 'analytics' ? (
         <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
           {loadingAnalytics || !analyticsData ? (
@@ -598,6 +657,190 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                 </div>
               </div>
 
+              {/* Historial de Pedidos, Pago y Modalidad de Entrega */}
+              <div className="bg-white rounded-2xl p-5 border border-neutral-200">
+                <h3 className="font-bold text-base text-neutral-950 mb-1">
+                  Pedidos, Validación de Pago y Entrega de Fotos
+                </h3>
+                <p className="text-xs text-neutral-500 mb-4">
+                  Elige si deseas entregar manualmente por Drive/WhatsApp o habilitar el <strong>Link de descarga directa</strong> sin marca de agua.
+                </p>
+
+                {analyticsData.orders.length === 0 ? (
+                  <p className="text-xs text-neutral-500">
+                    Cuando un cliente envíe su selección por WhatsApp aparecerá aquí automáticamente.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {analyticsData.orders.map((order) => {
+                      const isPaid = order.status === 'paid';
+                      const isLinkDelivery = order.deliveryEnabled && isPaid;
+
+                      return (
+                        <div
+                          key={order.id}
+                          className="p-4 rounded-2xl border border-neutral-200 bg-neutral-50/70 space-y-3"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-sm text-neutral-950">
+                                  {order.clientName}
+                                </span>
+                                {order.clientPhone && (
+                                  <span className="text-[11px] font-mono bg-white border border-neutral-200 px-2 py-0.5 rounded text-neutral-600">
+                                    {order.clientPhone}
+                                  </span>
+                                )}
+                                <span className="text-xs text-neutral-500">
+                                  • {order.eventTitle}
+                                </span>
+                                <span
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    isPaid
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                  }`}
+                                >
+                                  {isPaid ? 'Pagado' : 'Pendiente de pago'}
+                                </span>
+                              </div>
+
+                              <p className="text-xs text-neutral-600">
+                                <strong>{order.photosCount} fotos</strong> • Total:{' '}
+                                <strong className="text-neutral-950">
+                                  {formatCOP(order.totalAmount)}
+                                </strong>
+                                {order.discountAmount > 0 && (
+                                  <span className="text-emerald-700 ml-1">
+                                    (Ahorro: {formatCOP(order.discountAmount)})
+                                  </span>
+                                )}
+                                {isLinkDelivery && (
+                                  <span className="text-neutral-500 ml-2">
+                                    • Descargas: <strong>{order.downloadsCount || 0}</strong>
+                                  </span>
+                                )}
+                              </p>
+
+                              <p className="text-[11px] font-mono text-neutral-500 break-all">
+                                {(order.photoCodes || []).join(', ')}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyLightroomList(order)}
+                                title="Copiar códigos separados por coma para filtrar en Lightroom"
+                                className="px-3 py-1.5 rounded-lg bg-white border border-neutral-300 hover:bg-neutral-100 text-xs font-semibold text-neutral-800 inline-flex items-center gap-1"
+                              >
+                                {copiedOrderId === order.id ? (
+                                  <>
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Copiado
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3.5 h-3.5" /> Lightroom
+                                  </>
+                                )}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleToggleOrderPaid(order)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                                  isPaid
+                                    ? 'bg-neutral-200 text-neutral-700 hover:bg-neutral-300'
+                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                }`}
+                              >
+                                {isPaid ? 'Marcar pendiente' : 'Confirmar pago'}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteOrder(order.id)}
+                                title="Eliminar orden"
+                                className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Selector de modalidad de entrega: Manual (Drive) vs Link automático */}
+                          <div className="pt-2.5 border-t border-neutral-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[11px] font-bold text-neutral-600 mr-1">
+                                Método de entrega:
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleChangeDeliveryMode(order, 'manual')}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 transition ${
+                                  !isLinkDelivery
+                                    ? 'bg-neutral-900 text-white'
+                                    : 'bg-white border border-neutral-300 text-neutral-600 hover:bg-neutral-100'
+                                }`}
+                              >
+                                <HardDrive className="w-3 h-3" />
+                                Drive / Manual
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleChangeDeliveryMode(order, 'link')}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 transition ${
+                                  isLinkDelivery
+                                    ? 'bg-amber-600 text-white'
+                                    : 'bg-white border border-neutral-300 text-neutral-700 hover:bg-amber-50'
+                                }`}
+                              >
+                                <Link2 className="w-3 h-3" />
+                                {isLinkDelivery
+                                  ? 'Link de descarga activo'
+                                  : 'Habilitar link de descarga'}
+                              </button>
+                            </div>
+
+                            {isLinkDelivery && (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyDeliveryLink(order)}
+                                  className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 hover:bg-amber-50 text-amber-900 text-xs font-bold inline-flex items-center gap-1 transition"
+                                >
+                                  {copiedDeliveryId === order.id ? (
+                                    <>
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" /> Link copiado
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3.5 h-3.5" /> Copiar link
+                                    </>
+                                  )}
+                                </button>
+
+                                <a
+                                  href={buildDeliveryWhatsAppUrl(order)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-1.5 rounded-lg bg-[#25D366] hover:bg-[#1ebe5d] text-white text-xs font-bold inline-flex items-center gap-1 transition"
+                                >
+                                  <Send className="w-3.5 h-3.5" /> Enviar por WhatsApp
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Eventos más vistos y Fotos más elegidas */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white rounded-2xl p-5 border border-neutral-200 min-w-0">
                   <h3 className="font-bold text-sm text-neutral-950 mb-3">
@@ -661,105 +904,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                     </div>
                   )}
                 </div>
-              </div>
-
-              <div className="bg-white rounded-2xl p-5 border border-neutral-200">
-                <h3 className="font-bold text-base text-neutral-950 mb-4">
-                  Historial de Pedidos y Validación de Ingresos
-                </h3>
-
-                {analyticsData.orders.length === 0 ? (
-                  <p className="text-xs text-neutral-500">
-                    Cuando un cliente envíe su selección por WhatsApp aparecerá aquí automáticamente.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {analyticsData.orders.map((order) => {
-                      const isPaid = order.status === 'paid';
-                      return (
-                        <div
-                          key={order.id}
-                          className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                        >
-                          <div className="space-y-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-sm text-neutral-950">
-                                {order.clientName}
-                              </span>
-                              <span className="text-xs text-neutral-500">
-                                • {order.eventTitle}
-                              </span>
-                              <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                  isPaid
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-amber-100 text-amber-800'
-                                }`}
-                              >
-                                {isPaid ? 'Pagado' : 'Pendiente de pago'}
-                              </span>
-                            </div>
-
-                            <p className="text-xs text-neutral-600">
-                              <strong>{order.photosCount} fotos</strong> • Total:{' '}
-                              <strong className="text-neutral-950">
-                                {formatCOP(order.totalAmount)}
-                              </strong>
-                              {order.discountAmount > 0 && (
-                                <span className="text-emerald-700 ml-1">
-                                  (Ahorro: {formatCOP(order.discountAmount)})
-                                </span>
-                              )}
-                            </p>
-
-                            <p className="text-[11px] font-mono text-neutral-500 break-all">
-                              {(order.photoCodes || []).join(', ')}
-                            </p>
-                          </div>
-
-                          <div className="flex items-center gap-2 flex-wrap shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleCopyLightroomList(order)}
-                              title="Copiar códigos separados por coma para filtrar en Lightroom"
-                              className="px-3 py-1.5 rounded-lg bg-white border border-neutral-300 hover:bg-neutral-100 text-xs font-semibold text-neutral-800 inline-flex items-center gap-1"
-                            >
-                              {copiedOrderId === order.id ? (
-                                <>
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Copiado
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3.5 h-3.5" /> Lightroom
-                                </>
-                              )}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleToggleOrderPaid(order)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                                isPaid
-                                  ? 'bg-neutral-200 text-neutral-700 hover:bg-neutral-300'
-                                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                              }`}
-                            >
-                              {isPaid ? 'Marcar pendiente' : 'Confirmar pago'}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteOrder(order.id)}
-                              className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             </>
           )}
@@ -953,7 +1097,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                 </div>
               </div>
 
-              {/* Configuración opcional de Descuento por Volumen */}
               <div className="bg-amber-50/50 p-3.5 rounded-xl border border-amber-200/80 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -962,7 +1105,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                       Descuento por volumen (Opcional)
                     </p>
                     <p className="text-[11px] text-neutral-500">
-                      Aplica descuento automático si el cliente lleva cierta cantidad de fotos
+                      Aplica descuento automático si el cliente lleva cierta cantidad de fotos adicionales
                     </p>
                   </div>
                   <button
@@ -982,7 +1125,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div>
                       <label className="block text-[11px] font-bold text-neutral-700 mb-1">
-                        Mínimo de fotos elegidas
+                        Mínimo de fotos cobrables
                       </label>
                       <input
                         type="number"
@@ -1358,6 +1501,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
 
                             <button
                               onClick={() => handleDelete(ev.id, ev.title)}
+                              title="Eliminar evento y limpiar fotos no vendidas en Cloudinary"
                               className="text-xs font-semibold text-neutral-400 hover:text-red-600 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-50 transition ml-auto"
                             >
                               <Trash2 className="w-3.5 h-3.5" />

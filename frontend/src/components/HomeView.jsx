@@ -60,8 +60,8 @@ const FAQ_ITEMS = [
   {
     question: '¿Por qué medio y en cuánto tiempo recibo mis fotos?',
     answer:
-      'Una vez envías tu selección desde el carrito de la web y confirmas el pago por WhatsApp, te entregamos tus archivos originales a través de una carpeta privada de Google Drive o directamente como documento por WhatsApp (sin pérdida de calidad) en menos de 24 horas.',
-  },
+      'Una vez envías tu selección desde el carrito y confirmas el pago por WhatsApp, te habilitamos un enlace privado de descarga directa en esta misma plataforma (con opción de descarga individual o en archivo .ZIP) o te las enviamos vía Google Drive / documento por WhatsApp en menos de 24 horas.',
+  },  
   {
     question: '¿Cómo funcionan los descuentos por volumen en eventos deportivos?',
     answer:

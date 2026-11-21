@@ -10,4 +10,5 @@ urlpatterns = [
     path('events/<uuid:event_id>/unlock/', views.unlock_event, name='unlock-event'),
     path('events/<uuid:event_id>/view/', views.track_event_view, name='track-event-view'),
     path('orders/', views.create_order, name='create-order'),
+    path('delivery/<str:token>/', views.public_delivery_portal, name='public-delivery-portal'),
 ]

@@ -10,6 +10,7 @@ from .serializers import (
     FullEventSerializer,
     OrderSerializer,
 )
+from .cloudinary_utils import delete_cloudinary_urls
 
 
 def is_valid_admin(request):
@@ -63,8 +64,35 @@ def event_detail_manage(request, event_id):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     if request.method == 'DELETE':
+        # Recolectar todas las URLs de Cloudinary del evento (fotos + portada)
+        event_urls = list(event.photos.values_list('url', flat=True))
+        if event.cover_image:
+            event_urls.append(event.cover_image)
+
+        # Proteger las URLs de fotos que pertenecen a pedidos con link habilitado o pagados
+        protected_urls = set()
+        for order in Order.objects.all():
+            if order.delivery_enabled or order.status == 'paid':
+                for item in (order.purchased_photos or []):
+                    if isinstance(item, dict) and item.get('url'):
+                        protected_urls.add(item['url'])
+
+        # Eliminar en Cloudinary SOLO el relleno (las fotos que nadie compró)
+        urls_to_delete = list({u for u in event_urls if u and u not in protected_urls})
+        cloudinary_result = delete_cloudinary_urls(urls_to_delete)
+
+        # Asegurar snapshot de título en las órdenes vinculadas antes de eliminar el evento
+        event.orders.filter(event_title_snapshot='').update(event_title_snapshot=event.title)
+
         event.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {
+                'deleted': True,
+                'cloudinaryCleanup': cloudinary_result,
+                'preservedPurchasedPhotos': len(protected_urls),
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 @api_view(['POST'])
@@ -104,16 +132,27 @@ def create_order(request):
     event = get_object_or_404(Event, id=event_id, is_active=True)
 
     client_name = str(request.data.get('clientName', 'Cliente')).strip() or 'Cliente'
+    client_phone = str(request.data.get('clientPhone', '')).strip()
     photo_ids = request.data.get('photoIds', [])
     photo_codes = request.data.get('photoCodes', [])
     subtotal_amount = max(0, int(request.data.get('subtotalAmount', 0)))
     discount_amount = max(0, int(request.data.get('discountAmount', 0)))
     total_amount = max(0, int(request.data.get('totalAmount', 0)))
 
+    # Guardar snapshot exacto [{code, url}] de las fotos seleccionadas para que sobreviva si borras el evento
+    selected_photos_qs = Photo.objects.filter(event=event, id__in=photo_ids)
+    photo_map = {str(p.id): {'code': p.code, 'url': p.url} for p in selected_photos_qs}
+    purchased_snapshot = [
+        photo_map[str(pid)] for pid in photo_ids if str(pid) in photo_map
+    ]
+
     order = Order.objects.create(
         event=event,
+        event_title_snapshot=event.title,
         client_name=client_name,
+        client_phone=client_phone,
         photo_codes=photo_codes,
+        purchased_photos=purchased_snapshot,
         photos_count=len(photo_codes),
         subtotal_amount=subtotal_amount,
         discount_amount=discount_amount,
@@ -153,7 +192,7 @@ def admin_analytics(request):
         for p in top_photos_qs
     ]
 
-    recent_orders = OrderSerializer(Order.objects.all()[:25], many=True).data
+    recent_orders = OrderSerializer(Order.objects.all()[:40], many=True).data
 
     return Response({
         'totalViews': total_views,
@@ -177,9 +216,58 @@ def admin_order_manage(request, order_id):
         new_status = request.data.get('status')
         if new_status in ['pending', 'paid']:
             order.status = new_status
-            order.save()
+
+        delivery_mode = request.data.get('deliveryMode')
+        if delivery_mode in ['manual', 'link']:
+            order.delivery_mode = delivery_mode
+            if delivery_mode == 'manual':
+                order.delivery_enabled = False
+
+        if 'deliveryEnabled' in request.data:
+            order.delivery_enabled = bool(request.data.get('deliveryEnabled'))
+            if order.delivery_enabled:
+                order.delivery_mode = 'link'
+
+        order.save()
         return Response(OrderSerializer(order).data)
 
     if request.method == 'DELETE':
+        # Si el evento padre ya no existe, limpiar sus fotos de Cloudinary al borrar la orden
+        if order.event is None and order.purchased_photos:
+            urls = [item.get('url') for item in order.purchased_photos if isinstance(item, dict) and item.get('url')]
+            delete_cloudinary_urls(urls)
+
         order.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET', 'POST'])
+def public_delivery_portal(request, token):
+    order = get_object_or_404(Order, delivery_token=token)
+
+    if not order.delivery_enabled or order.status != 'paid':
+        return Response(
+            {
+                'detail': 'Este enlace de entrega aún no está habilitado o está pendiente de confirmación de pago.'
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    if request.method == 'POST':
+        Order.objects.filter(id=order.id).update(downloads_count=F('downloads_count') + 1)
+        order.refresh_from_db()
+        return Response({'downloadsCount': order.downloads_count})
+
+    event_title = order.event.title if order.event else (order.event_title_snapshot or 'Galería TOMASPH')
+
+    return Response({
+        'orderId': str(order.id),
+        'orderNumber': str(order.id).split('-')[0].upper(),
+        'clientName': order.client_name,
+        'eventTitle': event_title,
+        'photosCount': order.photos_count,
+        'totalAmount': order.total_amount,
+        'photos': order.purchased_photos or [],
+        'downloadsCount': order.downloads_count,
+        'createdAt': order.created_at,
+    })
