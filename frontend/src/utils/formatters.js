@@ -125,20 +125,22 @@ export const buildWhatsAppUrl = ({
 };
 
 /**
- * Optimiza URLs de Cloudinary al vuelo para miniaturas o vista previa rápida
- * sin alterar la URL original usada en la descarga final.
- * - 'thumb': ~40-70 KB (ideal para cuadrículas de 160+ fotos y portadas)
- * - 'preview': ~250-400 KB (ideal para abrir la foto en grande con marca de agua)
+ * Optimiza URLs de Cloudinary al vuelo sin alterar la URL original de descarga final:
+ * - 'thumb': ~40-70 KB (ideal para cuadrículas de 160+ fotos)
+ * - 'cover': ~120-180 KB (nitidez alta para tarjetas de portada de eventos)
+ * - 'preview': ~250-400 KB (ideal para abrir la foto ampliada en el Lightbox)
  */
 export const getOptimizedCloudinaryUrl = (url, variant = 'thumb') => {
   if (!url || typeof url !== 'string' || !url.includes('res.cloudinary.com')) {
     return url;
   }
 
-  const transformation =
-    variant === 'preview'
-      ? 'f_auto,q_auto:good,w_1400,c_limit'
-      : 'f_auto,q_auto:eco,w_500,c_limit';
+  let transformation = 'f_auto,q_auto:eco,w_500,c_limit';
+  if (variant === 'cover') {
+    transformation = 'f_auto,q_auto:good,w_900,c_limit';
+  } else if (variant === 'preview') {
+    transformation = 'f_auto,q_auto:good,w_1400,c_limit';
+  }
 
   if (url.includes('/upload/f_auto')) return url;
 

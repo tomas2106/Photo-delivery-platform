@@ -514,7 +514,7 @@ export default function App() {
                   const dateBadge = parseEventDateBadge(ev.date);
                   const tagLabel = ev.subcategory || ev.category;
                   const isCopied = copiedEventId === ev.id;
-                  const coverThumbUrl = getOptimizedCloudinaryUrl(ev.coverImage, 'thumb');
+                  const coverUrl = getOptimizedCloudinaryUrl(ev.coverImage, 'cover');
 
                   return (
                     <div
@@ -524,7 +524,7 @@ export default function App() {
                       className="relative rounded-3xl overflow-hidden bg-zinc-950 aspect-[3/4] border border-neutral-200/80 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group select-none"
                     >
                       <img
-                        src={coverThumbUrl}
+                        src={coverUrl}
                         alt={ev.title}
                         loading="lazy"
                         decoding="async"
