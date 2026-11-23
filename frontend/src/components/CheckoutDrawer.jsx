@@ -4,6 +4,7 @@ import {
   formatCOP,
   buildWhatsAppUrl,
   calculateOrderPricing,
+  getOptimizedCloudinaryUrl,
 } from '../utils/formatters';
 import { STUDIO_CONFIG } from '../data/eventsData';
 import { registerOrder } from '../services/eventService';
@@ -257,6 +258,7 @@ export default function CheckoutDrawer({
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
                 {selectedPhotos.map((photo, idx) => {
                   const isExtra = pricing.isPayPerPhoto || idx >= event.includedPhotos;
+                  const thumbUrl = getOptimizedCloudinaryUrl(photo.url, 'thumb');
                   return (
                     <div
                       key={photo.id}
@@ -264,8 +266,10 @@ export default function CheckoutDrawer({
                       className="relative rounded-xl overflow-hidden border border-neutral-200 bg-neutral-900 aspect-square group"
                     >
                       <img
-                        src={photo.url}
+                        src={thumbUrl}
                         alt={photo.code}
+                        loading="lazy"
+                        decoding="async"
                         draggable={false}
                         className="w-full h-full object-cover pointer-events-none select-none"
                       />

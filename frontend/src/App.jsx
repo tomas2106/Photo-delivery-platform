@@ -28,6 +28,7 @@ import {
   formatCOP,
   parseEventDateBadge,
   calculateOrderPricing,
+  getOptimizedCloudinaryUrl,
 } from './utils/formatters';
 import PhotoCard from './components/PhotoCard';
 import LightboxModal from './components/LightboxModal';
@@ -252,7 +253,6 @@ export default function App() {
     setOnlySelectedFilter(false);
   };
 
-  // PORTAL DE ENTREGA DE FOTOS COMPRADAS (?entrega=TOKEN)
   if (deliveryToken) {
     return (
       <DeliveryPortal
@@ -514,6 +514,7 @@ export default function App() {
                   const dateBadge = parseEventDateBadge(ev.date);
                   const tagLabel = ev.subcategory || ev.category;
                   const isCopied = copiedEventId === ev.id;
+                  const coverThumbUrl = getOptimizedCloudinaryUrl(ev.coverImage, 'thumb');
 
                   return (
                     <div
@@ -523,8 +524,10 @@ export default function App() {
                       className="relative rounded-3xl overflow-hidden bg-zinc-950 aspect-[3/4] border border-neutral-200/80 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group select-none"
                     >
                       <img
-                        src={ev.coverImage}
+                        src={coverThumbUrl}
                         alt={ev.title}
+                        loading="lazy"
+                        decoding="async"
                         draggable={false}
                         className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500 pointer-events-none"
                       />

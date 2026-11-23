@@ -7,7 +7,7 @@ import {
   Plus,
   Eye,
 } from 'lucide-react';
-import { formatCOP } from '../utils/formatters';
+import { formatCOP, getOptimizedCloudinaryUrl } from '../utils/formatters';
 
 export default function LightboxModal({
   photo,
@@ -72,6 +72,7 @@ export default function LightboxModal({
 
   const isPayPerPhoto = includedLimit === 0;
   const isExtra = isSelected && (isPayPerPhoto || selectionIndex >= includedLimit);
+  const previewUrl = getOptimizedCloudinaryUrl(photo.url, 'preview');
 
   const handleTouchStart = (e) => {
     touchEndX.current = null;
@@ -170,8 +171,9 @@ export default function LightboxModal({
 
         <div className="relative max-h-full max-w-full flex items-center justify-center overflow-hidden rounded-lg">
           <img
-            src={photo.url}
+            src={previewUrl}
             alt={photo.code}
+            decoding="async"
             draggable={false}
             className="max-h-[72dvh] sm:max-h-[78dvh] max-w-full object-contain pointer-events-none select-none"
           />
