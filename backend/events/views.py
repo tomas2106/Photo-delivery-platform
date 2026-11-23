@@ -192,7 +192,7 @@ def build_analytics_payload():
         for p in top_photos_qs
     ]
 
-    recent_orders = OrderSerializer(Order.objects.all()[:40], many=True).data
+    recent_orders = OrderSerializer(Order.objects.all()[:100], many=True).data
 
     return {
         'totalViews': total_views,
@@ -235,6 +235,18 @@ def admin_order_manage(request, order_id):
             order.delivery_enabled = bool(request.data.get('deliveryEnabled'))
             if order.delivery_enabled:
                 order.delivery_mode = 'link'
+
+        if 'totalAmount' in request.data:
+            try:
+                parsed_total = max(0, int(request.data.get('totalAmount')))
+                order.total_amount = parsed_total
+                order.subtotal_amount = parsed_total
+                order.discount_amount = 0
+            except (TypeError, ValueError):
+                return Response(
+                    {'detail': 'El valor total debe ser un número entero válido.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         order.save()
         return Response(OrderSerializer(order).data)

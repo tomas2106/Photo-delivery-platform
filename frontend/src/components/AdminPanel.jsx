@@ -26,6 +26,8 @@ import {
   Link2,
   Send,
   HardDrive,
+  PackageCheck,
+  Clock,
 } from 'lucide-react';
 import { CATEGORY_STRUCTURE, STUDIO_CONFIG } from '../data/eventsData';
 import {
@@ -67,6 +69,11 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const [copiedOrderId, setCopiedOrderId] = useState(null);
   const [copiedDeliveryId, setCopiedDeliveryId] = useState(null);
   const [copiedLinkId, setCopiedLinkId] = useState(null);
+
+  // Estado para edición de precio negociado en una orden
+  const [editingPriceOrderId, setEditingPriceOrderId] = useState(null);
+  const [editingPriceValue, setEditingPriceValue] = useState('');
+  const [savingPriceOrderId, setSavingPriceOrderId] = useState(null);
 
   const [adminCategoryFilter, setAdminCategoryFilter] = useState('Todos');
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
@@ -438,6 +445,38 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     });
   };
 
+  const handleStartEditPrice = (order) => {
+    setEditingPriceOrderId(order.id);
+    setEditingPriceValue(String(order.totalAmount ?? 0));
+  };
+
+  const handleCancelEditPrice = () => {
+    setEditingPriceOrderId(null);
+    setEditingPriceValue('');
+  };
+
+  const handleSaveEditedPrice = async (order) => {
+    const cleanNumeric = Number(String(editingPriceValue).replace(/\D/g, ''));
+    if (Number.isNaN(cleanNumeric) || cleanNumeric < 0) {
+      alert('Ingresa un valor válido en pesos colombianos.');
+      return;
+    }
+
+    setSavingPriceOrderId(order.id);
+    try {
+      const updatedOrder = await updateOrderManage(order.id, {
+        totalAmount: cleanNumeric,
+      });
+      applyOrderUpdateLocally(updatedOrder);
+      setEditingPriceOrderId(null);
+      setEditingPriceValue('');
+    } catch {
+      alert('No se pudo actualizar el valor del pedido.');
+    } finally {
+      setSavingPriceOrderId(null);
+    }
+  };
+
   const handleToggleOrderPaid = async (order) => {
     const nextStatus = order.status === 'paid' ? 'pending' : 'paid';
     const updatedOrder = await updateOrderManage(order.id, {
@@ -458,6 +497,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
         : await updateOrderManage(order.id, {
             deliveryMode: 'manual',
             deliveryEnabled: false,
+            status: 'paid',
           });
 
     applyOrderUpdateLocally(updatedOrder);
@@ -509,6 +549,234 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     navigator.clipboard.writeText(lightroomString);
     setCopiedOrderId(order.id);
     setTimeout(() => setCopiedOrderId(null), 2500);
+  };
+
+  const renderOrderCard = (order) => {
+    const isPaid = order.status === 'paid';
+    const isLinkDelivery = order.deliveryEnabled && isPaid;
+    const isEditingPrice = editingPriceOrderId === order.id;
+
+    return (
+      <div
+        key={order.id}
+        className={`p-4 rounded-2xl border space-y-3 transition ${
+          isPaid
+            ? 'border-emerald-200/80 bg-emerald-50/30'
+            : 'border-neutral-200 bg-neutral-50/70'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-sm text-neutral-950">
+                {order.clientName}
+              </span>
+              {order.clientPhone && (
+                <span className="text-[11px] font-mono bg-white border border-neutral-200 px-2 py-0.5 rounded text-neutral-600">
+                  {order.clientPhone}
+                </span>
+              )}
+              <span className="text-xs text-neutral-500">
+                • {order.eventTitle}
+              </span>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  isPaid
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {isPaid
+                  ? isLinkDelivery
+                    ? 'Entregado por Link'
+                    : 'Entregado por Drive / Manual'
+                  : 'Pendiente de pago'}
+              </span>
+            </div>
+
+            <div className="text-xs text-neutral-600 flex items-center gap-2 flex-wrap">
+              <span>
+                <strong>{order.photosCount} fotos</strong> • Total:
+              </span>
+
+              {isEditingPrice ? (
+                <div className="inline-flex items-center gap-1.5 bg-white border border-amber-400 rounded-lg px-2 py-1 shadow-2xs">
+                  <span className="text-[11px] font-bold text-neutral-500">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="500"
+                    value={editingPriceValue}
+                    onChange={(e) => setEditingPriceValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveEditedPrice(order);
+                      if (e.key === 'Escape') handleCancelEditPrice();
+                    }}
+                    className="w-24 text-xs font-bold text-neutral-950 focus:outline-none"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    disabled={savingPriceOrderId === order.id}
+                    onClick={() => handleSaveEditedPrice(order)}
+                    title="Guardar nuevo precio"
+                    className="p-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    {savingPriceOrderId === order.id ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Check className="w-3 h-3" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelEditPrice}
+                    title="Cancelar"
+                    className="p-1 rounded bg-neutral-200 hover:bg-neutral-300 text-neutral-700"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <span className="inline-flex items-center gap-1.5">
+                  <strong className="text-neutral-950 text-sm">
+                    {formatCOP(order.totalAmount)}
+                  </strong>
+                  <button
+                    type="button"
+                    onClick={() => handleStartEditPrice(order)}
+                    title="Modificar precio negociado con el cliente"
+                    className="px-2 py-0.5 rounded-md bg-white border border-neutral-300 hover:border-amber-500 hover:text-amber-700 text-[11px] font-semibold text-neutral-600 inline-flex items-center gap-1 transition"
+                  >
+                    <Pencil className="w-3 h-3" /> Editar precio
+                  </button>
+                </span>
+              )}
+
+              {order.discountAmount > 0 && !isEditingPrice && (
+                <span className="text-emerald-700">
+                  (Ahorro: {formatCOP(order.discountAmount)})
+                </span>
+              )}
+              {isLinkDelivery && (
+                <span className="text-neutral-500">
+                  • Descargas: <strong>{order.downloadsCount || 0}</strong>
+                </span>
+              )}
+            </div>
+
+            <p className="text-[11px] font-mono text-neutral-500 break-all">
+              {(order.photoCodes || []).join(', ')}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <button
+              type="button"
+              onClick={() => handleCopyLightroomList(order)}
+              title="Copiar códigos separados por coma para filtrar en Lightroom"
+              className="px-3 py-1.5 rounded-lg bg-white border border-neutral-300 hover:bg-neutral-100 text-xs font-semibold text-neutral-800 inline-flex items-center gap-1"
+            >
+              {copiedOrderId === order.id ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Copiado
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" /> Lightroom
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleToggleOrderPaid(order)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                isPaid
+                  ? 'bg-neutral-200 text-neutral-700 hover:bg-neutral-300'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              }`}
+            >
+              {isPaid ? 'Volver a pendiente' : 'Confirmar pago'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleDeleteOrder(order.id)}
+              title="Eliminar orden"
+              className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Selector de modalidad de entrega: Manual (Drive) vs Link automático */}
+        <div className="pt-2.5 border-t border-neutral-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-bold text-neutral-600 mr-1">
+              Método de entrega:
+            </span>
+            <button
+              type="button"
+              onClick={() => handleChangeDeliveryMode(order, 'manual')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 transition ${
+                isPaid && !isLinkDelivery
+                  ? 'bg-neutral-900 text-white'
+                  : 'bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-100'
+              }`}
+            >
+              <HardDrive className="w-3 h-3" />
+              {isPaid && !isLinkDelivery ? 'Entregado por Drive' : 'Marcar entrega Drive'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleChangeDeliveryMode(order, 'link')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 transition ${
+                isLinkDelivery
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-white border border-neutral-300 text-neutral-700 hover:bg-amber-50'
+              }`}
+            >
+              <Link2 className="w-3 h-3" />
+              {isLinkDelivery
+                ? 'Link de descarga activo'
+                : 'Habilitar link de descarga'}
+            </button>
+          </div>
+
+          {isLinkDelivery && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => handleCopyDeliveryLink(order)}
+                className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 hover:bg-amber-50 text-amber-900 text-xs font-bold inline-flex items-center gap-1 transition"
+              >
+                {copiedDeliveryId === order.id ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" /> Link copiado
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" /> Copiar link
+                  </>
+                )}
+              </button>
+
+              <a
+                href={buildDeliveryWhatsAppUrl(order)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-lg bg-[#25D366] hover:bg-[#1ebe5d] text-white text-xs font-bold inline-flex items-center gap-1 transition"
+              >
+                <Send className="w-3.5 h-3.5" /> Enviar por WhatsApp
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   if (!isAuthenticated) {
@@ -570,6 +838,9 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const paginatedAdminEvents = filteredAdminEvents.slice(0, adminVisibleCount);
   const hasMoreAdminEvents = filteredAdminEvents.length > adminVisibleCount;
   const remainingAdminEvents = filteredAdminEvents.length - adminVisibleCount;
+
+  const pendingOrders = (analyticsData?.orders || []).filter((o) => o.status !== 'paid');
+  const deliveredOrders = (analyticsData?.orders || []).filter((o) => o.status === 'paid');
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#FAFAFA] pb-16">
@@ -649,7 +920,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                     {formatCOP(analyticsData.quotedRevenue)}
                   </div>
                   <p className="text-[11px] text-neutral-400 mt-1">
-                    Pedidos enviados por confirmar
+                    Pedidos pendientes por confirmar
                   </p>
                 </div>
 
@@ -675,190 +946,53 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                     {analyticsData.totalOrders}
                   </div>
                   <p className="text-[11px] text-neutral-400 mt-1">
-                    Selecciones enviadas por clientes
+                    {pendingOrders.length} pendientes • {deliveredOrders.length} entregados
                   </p>
                 </div>
               </div>
 
-              {/* Historial de Pedidos, Pago y Modalidad de Entrega */}
+              {/* SECCIÓN 1: PEDIDOS PENDIENTES POR CONFIRMAR / ENTREGAR */}
               <div className="bg-white rounded-2xl p-5 border border-neutral-200">
-                <h3 className="font-bold text-base text-neutral-950 mb-1">
-                  Pedidos, Validación de Pago y Entrega de Fotos
-                </h3>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <h3 className="font-bold text-base text-neutral-950 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-600" />
+                    Pedidos Pendientes ({pendingOrders.length})
+                  </h3>
+                </div>
                 <p className="text-xs text-neutral-500 mb-4">
-                  Elige si deseas entregar manualmente por Drive/WhatsApp o habilitar el <strong>Link de descarga directa</strong> sin marca de agua.
+                  Aquí aparecen únicamente los pedidos por confirmar. Al marcarlos como <strong>Drive</strong>, <strong>Link de descarga</strong> o <strong>Confirmar pago</strong>, pasarán automáticamente al apartado de <strong>Entregas Realizadas</strong>.
                 </p>
 
-                {analyticsData.orders.length === 0 ? (
-                  <p className="text-xs text-neutral-500">
-                    Cuando un cliente envíe su selección por WhatsApp aparecerá aquí automáticamente.
-                  </p>
+                {pendingOrders.length === 0 ? (
+                  <div className="p-6 rounded-xl bg-neutral-50 border border-dashed border-neutral-200 text-center text-xs text-neutral-500">
+                    No tienes pedidos pendientes por gestionar en este momento.
+                  </div>
                 ) : (
-                  <div className="space-y-4">
-                    {analyticsData.orders.map((order) => {
-                      const isPaid = order.status === 'paid';
-                      const isLinkDelivery = order.deliveryEnabled && isPaid;
+                  <div className="space-y-3">
+                    {pendingOrders.map((order) => renderOrderCard(order))}
+                  </div>
+                )}
+              </div>
 
-                      return (
-                        <div
-                          key={order.id}
-                          className="p-4 rounded-2xl border border-neutral-200 bg-neutral-50/70 space-y-3"
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                            <div className="space-y-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-sm text-neutral-950">
-                                  {order.clientName}
-                                </span>
-                                {order.clientPhone && (
-                                  <span className="text-[11px] font-mono bg-white border border-neutral-200 px-2 py-0.5 rounded text-neutral-600">
-                                    {order.clientPhone}
-                                  </span>
-                                )}
-                                <span className="text-xs text-neutral-500">
-                                  • {order.eventTitle}
-                                </span>
-                                <span
-                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                    isPaid
-                                      ? 'bg-emerald-100 text-emerald-800'
-                                      : 'bg-amber-100 text-amber-800'
-                                  }`}
-                                >
-                                  {isPaid ? 'Pagado' : 'Pendiente de pago'}
-                                </span>
-                              </div>
+              {/* SECCIÓN 2: ENTREGAS REALIZADAS / PAGADAS (DRIVE Y LINK) */}
+              <div className="bg-white rounded-2xl p-5 border border-neutral-200">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <h3 className="font-bold text-base text-neutral-950 flex items-center gap-2">
+                    <PackageCheck className="w-4 h-4 text-emerald-600" />
+                    Entregas Realizadas y Pagadas ({deliveredOrders.length})
+                  </h3>
+                </div>
+                <p className="text-xs text-neutral-500 mb-4">
+                  Órdenes ya confirmadas como pagadas y entregadas por <strong>Drive</strong> o mediante <strong>Link directo</strong>. Puedes editar su precio negociado, copiar el link o reenviarlo por WhatsApp.
+                </p>
 
-                              <p className="text-xs text-neutral-600">
-                                <strong>{order.photosCount} fotos</strong> • Total:{' '}
-                                <strong className="text-neutral-950">
-                                  {formatCOP(order.totalAmount)}
-                                </strong>
-                                {order.discountAmount > 0 && (
-                                  <span className="text-emerald-700 ml-1">
-                                    (Ahorro: {formatCOP(order.discountAmount)})
-                                  </span>
-                                )}
-                                {isLinkDelivery && (
-                                  <span className="text-neutral-500 ml-2">
-                                    • Descargas: <strong>{order.downloadsCount || 0}</strong>
-                                  </span>
-                                )}
-                              </p>
-
-                              <p className="text-[11px] font-mono text-neutral-500 break-all">
-                                {(order.photoCodes || []).join(', ')}
-                              </p>
-                            </div>
-
-                            <div className="flex items-center gap-2 flex-wrap shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleCopyLightroomList(order)}
-                                title="Copiar códigos separados por coma para filtrar en Lightroom"
-                                className="px-3 py-1.5 rounded-lg bg-white border border-neutral-300 hover:bg-neutral-100 text-xs font-semibold text-neutral-800 inline-flex items-center gap-1"
-                              >
-                                {copiedOrderId === order.id ? (
-                                  <>
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Copiado
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy className="w-3.5 h-3.5" /> Lightroom
-                                  </>
-                                )}
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleToggleOrderPaid(order)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                                  isPaid
-                                    ? 'bg-neutral-200 text-neutral-700 hover:bg-neutral-300'
-                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                }`}
-                              >
-                                {isPaid ? 'Marcar pendiente' : 'Confirmar pago'}
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteOrder(order.id)}
-                                title="Eliminar orden"
-                                className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Selector de modalidad de entrega: Manual (Drive) vs Link automático */}
-                          <div className="pt-2.5 border-t border-neutral-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[11px] font-bold text-neutral-600 mr-1">
-                                Método de entrega:
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleChangeDeliveryMode(order, 'manual')}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 transition ${
-                                  !isLinkDelivery
-                                    ? 'bg-neutral-900 text-white'
-                                    : 'bg-white border border-neutral-300 text-neutral-600 hover:bg-neutral-100'
-                                }`}
-                              >
-                                <HardDrive className="w-3 h-3" />
-                                Drive / Manual
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleChangeDeliveryMode(order, 'link')}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 transition ${
-                                  isLinkDelivery
-                                    ? 'bg-amber-600 text-white'
-                                    : 'bg-white border border-neutral-300 text-neutral-700 hover:bg-amber-50'
-                                }`}
-                              >
-                                <Link2 className="w-3 h-3" />
-                                {isLinkDelivery
-                                  ? 'Link de descarga activo'
-                                  : 'Habilitar link de descarga'}
-                              </button>
-                            </div>
-
-                            {isLinkDelivery && (
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopyDeliveryLink(order)}
-                                  className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 hover:bg-amber-50 text-amber-900 text-xs font-bold inline-flex items-center gap-1 transition"
-                                >
-                                  {copiedDeliveryId === order.id ? (
-                                    <>
-                                      <Check className="w-3.5 h-3.5 text-emerald-600" /> Link copiado
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Copy className="w-3.5 h-3.5" /> Copiar link
-                                    </>
-                                  )}
-                                </button>
-
-                                <a
-                                  href={buildDeliveryWhatsAppUrl(order)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-3 py-1.5 rounded-lg bg-[#25D366] hover:bg-[#1ebe5d] text-white text-xs font-bold inline-flex items-center gap-1 transition"
-                                >
-                                  <Send className="w-3.5 h-3.5" /> Enviar por WhatsApp
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                {deliveredOrders.length === 0 ? (
+                  <div className="p-6 rounded-xl bg-neutral-50 border border-dashed border-neutral-200 text-center text-xs text-neutral-500">
+                    Aún no hay entregas confirmadas.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {deliveredOrders.map((order) => renderOrderCard(order))}
                   </div>
                 )}
               </div>
