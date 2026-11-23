@@ -1,5 +1,5 @@
 import { Check, Search } from 'lucide-react';
-import { formatCOP } from '../utils/formatters';
+import { formatCOP, getOptimizedCloudinaryUrl } from '../utils/formatters';
 
 export default function PhotoCard({
   photo,
@@ -13,6 +13,7 @@ export default function PhotoCard({
 }) {
   const isPayPerPhoto = includedLimit === 0;
   const isExtra = isSelected && selectionIndex >= includedLimit;
+  const thumbUrl = getOptimizedCloudinaryUrl(photo.url, 'thumb');
 
   return (
     <div
@@ -23,9 +24,10 @@ export default function PhotoCard({
       }`}
     >
       <img
-        src={photo.url}
+        src={thumbUrl}
         alt={photo.code}
         loading="lazy"
+        decoding="async"
         draggable="false"
         className="w-full h-full object-cover select-none pointer-events-none"
       />
