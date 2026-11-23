@@ -4,11 +4,14 @@ from .models import Event, Photo, Order
 
 class PhotoSerializer(serializers.ModelSerializer):
     id = serializers.CharField(read_only=True)
+    capturedHour = serializers.IntegerField(
+        source='captured_hour', required=False, allow_null=True
+    )
     selectionCount = serializers.IntegerField(source='selection_count', read_only=True)
 
     class Meta:
         model = Photo
-        fields = ['id', 'code', 'url', 'order', 'selectionCount']
+        fields = ['id', 'code', 'url', 'capturedHour', 'order', 'selectionCount']
 
 
 class PublicEventListSerializer(serializers.ModelSerializer):
@@ -19,6 +22,8 @@ class PublicEventListSerializer(serializers.ModelSerializer):
     volumeDiscountEnabled = serializers.BooleanField(source='volume_discount_enabled')
     volumeDiscountMinPhotos = serializers.IntegerField(source='volume_discount_min_photos')
     volumeDiscountPercent = serializers.IntegerField(source='volume_discount_percent')
+    timeFilterEnabled = serializers.BooleanField(source='time_filter_enabled')
+    expiresAt = serializers.DateField(source='expires_at', required=False, allow_null=True)
     viewsCount = serializers.IntegerField(source='views_count', read_only=True)
     isActive = serializers.BooleanField(source='is_active')
     watermarkText = serializers.CharField(source='watermark_text')
@@ -40,6 +45,8 @@ class PublicEventListSerializer(serializers.ModelSerializer):
             'volumeDiscountEnabled',
             'volumeDiscountMinPhotos',
             'volumeDiscountPercent',
+            'timeFilterEnabled',
+            'expiresAt',
             'viewsCount',
             'isActive',
             'watermarkText',
@@ -61,6 +68,8 @@ class FullEventSerializer(serializers.ModelSerializer):
     volumeDiscountEnabled = serializers.BooleanField(source='volume_discount_enabled')
     volumeDiscountMinPhotos = serializers.IntegerField(source='volume_discount_min_photos')
     volumeDiscountPercent = serializers.IntegerField(source='volume_discount_percent')
+    timeFilterEnabled = serializers.BooleanField(source='time_filter_enabled')
+    expiresAt = serializers.DateField(source='expires_at', required=False, allow_null=True)
     viewsCount = serializers.IntegerField(source='views_count', read_only=True)
     isActive = serializers.BooleanField(source='is_active')
     watermarkText = serializers.CharField(source='watermark_text')
@@ -83,6 +92,8 @@ class FullEventSerializer(serializers.ModelSerializer):
             'volumeDiscountEnabled',
             'volumeDiscountMinPhotos',
             'volumeDiscountPercent',
+            'timeFilterEnabled',
+            'expiresAt',
             'viewsCount',
             'isActive',
             'watermarkText',
@@ -98,6 +109,7 @@ class FullEventSerializer(serializers.ModelSerializer):
                 event=event,
                 code=photo.get('code', f'TOMASPH_{idx + 1:03d}'),
                 url=photo['url'],
+                captured_hour=photo.get('captured_hour'),
                 order=idx,
             )
         return event
@@ -109,17 +121,25 @@ class FullEventSerializer(serializers.ModelSerializer):
         instance.save()
 
         if photos_data is not None:
-            existing_counts = {
-                p.url: p.selection_count for p in instance.photos.all()
+            existing_map = {
+                p.url: (p.selection_count, p.captured_hour)
+                for p in instance.photos.all()
             }
             instance.photos.all().delete()
             for idx, photo in enumerate(photos_data):
+                prev_count, prev_hour = existing_map.get(photo['url'], (0, None))
+                captured_hour = (
+                    photo.get('captured_hour')
+                    if photo.get('captured_hour') is not None
+                    else prev_hour
+                )
                 Photo.objects.create(
                     event=instance,
                     code=photo.get('code', f'TOMASPH_{idx + 1:03d}'),
                     url=photo['url'],
+                    captured_hour=captured_hour,
                     order=idx,
-                    selection_count=existing_counts.get(photo['url'], 0),
+                    selection_count=prev_count,
                 )
         return instance
 

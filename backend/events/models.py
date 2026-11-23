@@ -24,6 +24,10 @@ class Event(models.Model):
     volume_discount_min_photos = models.PositiveIntegerField(default=5)
     volume_discount_percent = models.PositiveIntegerField(default=15)
 
+    # Opciones modulares por evento (filtro horario EXIF y fecha límite)
+    time_filter_enabled = models.BooleanField(default=False)
+    expires_at = models.DateField(null=True, blank=True)
+
     # Analítica de visitas
     views_count = models.PositiveIntegerField(default=0)
 
@@ -44,6 +48,7 @@ class Photo(models.Model):
     event = models.ForeignKey(Event, related_name='photos', on_delete=models.CASCADE)
     code = models.CharField(max_length=100)
     url = models.TextField()
+    captured_hour = models.PositiveSmallIntegerField(null=True, blank=True)
     order = models.PositiveIntegerField(default=0)
     selection_count = models.PositiveIntegerField(default=0)
 

@@ -17,6 +17,8 @@ import {
   Share2,
   Check,
   Tag,
+  Clock,
+  CalendarClock,
 } from 'lucide-react';
 import {
   getEvents,
@@ -41,6 +43,26 @@ import DeliveryPortal from './components/DeliveryPortal';
 
 const EVENTS_PER_PAGE = 9;
 
+const isEventExpired = (expiresAt) => {
+  if (!expiresAt) return false;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  return expiresAt < todayStr;
+};
+
+const formatExpiryDateLabel = (expiresAt) => {
+  if (!expiresAt) return '';
+  const [year, month, day] = expiresAt.split('-');
+  if (!year || !month || !day) return expiresAt;
+  return `${day}/${month}/${year}`;
+};
+
+const getTimePeriodKey = (hour) => {
+  if (hour === null || hour === undefined) return null;
+  if (hour < 12) return 'morning';
+  if (hour < 18) return 'afternoon';
+  return 'night';
+};
+
 export default function App() {
   const [deliveryToken, setDeliveryToken] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -63,6 +85,7 @@ export default function App() {
   const [unlockedEvents, setUnlockedEvents] = useState({});
   const [selectedIds, setSelectedIds] = useState([]);
   const [onlySelectedFilter, setOnlySelectedFilter] = useState(false);
+  const [timePeriodFilter, setTimePeriodFilter] = useState('all');
   const [zoomPhotoIndex, setZoomPhotoIndex] = useState(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [copiedEventId, setCopiedEventId] = useState(null);
@@ -83,6 +106,7 @@ export default function App() {
   const handleOpenEvent = (ev) => {
     setPinInput('');
     setPinError('');
+    setTimePeriodFilter('all');
     setActiveEvent(ev);
     syncUrlEventParam(ev.id);
 
@@ -105,7 +129,10 @@ export default function App() {
         const deepEventId = params.get('evento');
         if (deepEventId) {
           const matched = data.find(
-            (ev) => String(ev.id) === String(deepEventId) && ev.isActive !== false
+            (ev) =>
+              String(ev.id) === String(deepEventId) &&
+              ev.isActive !== false &&
+              !isEventExpired(ev.expiresAt)
           );
           if (matched) {
             setCurrentPage('gallery');
@@ -182,6 +209,7 @@ export default function App() {
 
       setSelectedIds(cleanIds);
       setOnlySelectedFilter(false);
+      setTimePeriodFilter('all');
     }
   }, [activeEvent]);
 
@@ -204,6 +232,7 @@ export default function App() {
     setZoomPhotoIndex(null);
     setIsCheckoutOpen(false);
     setIsPrivacyShieldActive(false);
+    setTimePeriodFilter('all');
     syncUrlEventParam(null);
   };
 
@@ -343,7 +372,9 @@ export default function App() {
     const activeCatObj = CATEGORY_STRUCTURE.find((c) => c.name === selectedCategory);
     const subcategories = activeCatObj ? activeCatObj.subcategories : [];
 
-    const publicEvents = events.filter((ev) => ev.isActive !== false);
+    const publicEvents = events.filter(
+      (ev) => ev.isActive !== false && !isEventExpired(ev.expiresAt)
+    );
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
     const filteredEvents = publicEvents.filter((ev) => {
@@ -703,9 +734,33 @@ export default function App() {
   }
 
   const pricing = calculateOrderPricing(activeEvent, selectedIds.length);
-  const displayedPhotos = onlySelectedFilter
-    ? activeEvent.photos.filter((p) => selectedIds.includes(p.id))
-    : activeEvent.photos;
+
+  // Calcular disponibilidad de tandas horarias si el admin habilitó timeFilterEnabled
+  const availableTimePeriods = activeEvent.timeFilterEnabled
+    ? {
+        morning: activeEvent.photos.some((p) => getTimePeriodKey(p.capturedHour) === 'morning'),
+        afternoon: activeEvent.photos.some((p) => getTimePeriodKey(p.capturedHour) === 'afternoon'),
+        night: activeEvent.photos.some((p) => getTimePeriodKey(p.capturedHour) === 'night'),
+      }
+    : { morning: false, afternoon: false, night: false };
+
+  const hasAnyTimePeriod =
+    availableTimePeriods.morning ||
+    availableTimePeriods.afternoon ||
+    availableTimePeriods.night;
+
+  const displayedPhotos = activeEvent.photos.filter((p) => {
+    if (onlySelectedFilter && !selectedIds.includes(p.id)) return false;
+    if (
+      activeEvent.timeFilterEnabled &&
+      hasAnyTimePeriod &&
+      timePeriodFilter !== 'all' &&
+      getTimePeriodKey(p.capturedHour) !== timePeriodFilter
+    ) {
+      return false;
+    }
+    return true;
+  });
 
   const selectedPhotoObjects = selectedIds
     .map((id) => activeEvent.photos.find((p) => p.id === id))
@@ -812,7 +867,76 @@ export default function App() {
               </span>
             </div>
           )}
+
+          {activeEvent.expiresAt && (
+            <div className="flex items-center gap-1.5 text-neutral-800 font-semibold pt-1 border-t border-amber-200/60">
+              <CalendarClock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+              <span>
+                Galería disponible para selección hasta el{' '}
+                <strong>{formatExpiryDateLabel(activeEvent.expiresAt)}</strong>.
+              </span>
+            </div>
+          )}
         </div>
+
+        {/* Filtro opcional por horario / tandas si el administrador lo activó */}
+        {activeEvent.timeFilterEnabled && hasAnyTimePeriod && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pt-3 no-scrollbar">
+            <span className="text-[11px] font-bold text-neutral-500 inline-flex items-center gap-1 mr-1 shrink-0">
+              <Clock className="w-3.5 h-3.5 text-amber-600" /> Horario:
+            </span>
+            <button
+              type="button"
+              onClick={() => setTimePeriodFilter('all')}
+              className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition ${
+                timePeriodFilter === 'all'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+              }`}
+            >
+              Todo el día
+            </button>
+            {availableTimePeriods.morning && (
+              <button
+                type="button"
+                onClick={() => setTimePeriodFilter('morning')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition ${
+                  timePeriodFilter === 'morning'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+                }`}
+              >
+                Mañana (6am - 12pm)
+              </button>
+            )}
+            {availableTimePeriods.afternoon && (
+              <button
+                type="button"
+                onClick={() => setTimePeriodFilter('afternoon')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition ${
+                  timePeriodFilter === 'afternoon'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+                }`}
+              >
+                Tarde (12pm - 6pm)
+              </button>
+            )}
+            {availableTimePeriods.night && (
+              <button
+                type="button"
+                onClick={() => setTimePeriodFilter('night')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition ${
+                  timePeriodFilter === 'night'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+                }`}
+              >
+                Noche (6pm+)
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-2 mt-4 mb-4">
           <div className="flex items-center gap-2">
