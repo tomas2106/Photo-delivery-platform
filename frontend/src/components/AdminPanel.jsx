@@ -28,6 +28,7 @@ import {
   HardDrive,
   PackageCheck,
   Clock,
+  CalendarClock,
 } from 'lucide-react';
 import { CATEGORY_STRUCTURE, STUDIO_CONFIG } from '../data/eventsData';
 import {
@@ -54,6 +55,31 @@ const extractCleanCode = (rawName, fallbackIndex) => {
   return decodeURIComponent(withoutExt) || `TOMASPH_${String(fallbackIndex + 1).padStart(3, '0')}`;
 };
 
+// Lee la hora original de disparo (EXIF DateTimeOriginal) directo en el navegador sin librerías externas
+const extractExifCapturedHour = async (file) => {
+  try {
+    const slice = file.slice(0, 128 * 1024);
+    const buffer = await slice.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const text = new TextDecoder('latin1').decode(bytes);
+    const matches = text.match(/20\d{2}:(?:0[1-9]|1[0-2]):(?:0[1-9]|[12]\d|3[01]) ([01]\d|2[0-3]):[0-5]\d:[0-5]\d/g);
+    if (matches && matches.length > 0) {
+      const target = matches[matches.length > 1 ? 1 : 0];
+      const hourStr = target.split(' ')[1]?.split(':')[0];
+      const hour = Number(hourStr);
+      if (!Number.isNaN(hour) && hour >= 0 && hour <= 23) {
+        return hour;
+      }
+    }
+  } catch {
+    // Fallback silencioso
+  }
+  if (file.lastModified) {
+    return new Date(file.lastModified).getHours();
+  }
+  return null;
+};
+
 export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const [isAuthenticated, setIsAuthenticated] = useState(
     Boolean(sessionStorage.getItem('tomasph_admin_pin'))
@@ -70,7 +96,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const [copiedDeliveryId, setCopiedDeliveryId] = useState(null);
   const [copiedLinkId, setCopiedLinkId] = useState(null);
 
-  // Estado para edición de precio negociado en una orden
   const [editingPriceOrderId, setEditingPriceOrderId] = useState(null);
   const [editingPriceValue, setEditingPriceValue] = useState('');
   const [savingPriceOrderId, setSavingPriceOrderId] = useState(null);
@@ -98,6 +123,9 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
   const [volumeDiscountEnabled, setVolumeDiscountEnabled] = useState(false);
   const [volumeDiscountMinPhotos, setVolumeDiscountMinPhotos] = useState(5);
   const [volumeDiscountPercent, setVolumeDiscountPercent] = useState(15);
+
+  const [timeFilterEnabled, setTimeFilterEnabled] = useState(false);
+  const [expiresAt, setExpiresAt] = useState('');
 
   const [coverImage, setCoverImage] = useState('');
   const [isActive, setIsActive] = useState(true);
@@ -166,7 +194,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
 
-    const existingMap = new Map(uploadedItems.map((item) => [item.url, item.code]));
+    const existingMap = new Map(uploadedItems.map((item) => [item.url, item]));
 
     const combined = [...uploadedItems];
     manualLines.forEach((url) => {
@@ -174,6 +202,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
         combined.push({
           code: extractCleanCode(url, combined.length),
           url,
+          capturedHour: null,
         });
       }
     });
@@ -197,6 +226,8 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     setVolumeDiscountEnabled(false);
     setVolumeDiscountMinPhotos(5);
     setVolumeDiscountPercent(15);
+    setTimeFilterEnabled(false);
+    setExpiresAt('');
     setCoverImage('');
     setIsActive(true);
     setPhotoUrlsText('');
@@ -218,12 +249,15 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     setVolumeDiscountEnabled(Boolean(ev.volumeDiscountEnabled));
     setVolumeDiscountMinPhotos(ev.volumeDiscountMinPhotos ?? 5);
     setVolumeDiscountPercent(ev.volumeDiscountPercent ?? 15);
+    setTimeFilterEnabled(Boolean(ev.timeFilterEnabled));
+    setExpiresAt(ev.expiresAt || '');
     setCoverImage(ev.coverImage || '');
     setIsActive(ev.isActive !== false);
 
     const existingPhotos = (ev.photos || []).map((p, idx) => ({
       code: p.code || extractCleanCode(p.url, idx),
       url: p.url,
+      capturedHour: p.capturedHour ?? null,
     }));
     setUploadedItems(existingPhotos);
     setPhotoUrlsText('');
@@ -271,6 +305,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const originalCode = extractCleanCode(file.name, uploadedItems.length + i);
+      const capturedHour = await extractExifCapturedHour(file);
 
       const formData = new FormData();
       formData.append('file', file);
@@ -291,6 +326,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
           newlyUploaded.push({
             code: originalCode,
             url: data.secure_url,
+            capturedHour,
           });
         }
       } catch (err) {
@@ -344,6 +380,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
       const formattedPhotos = finalList.map((item, idx) => ({
         code: item.code,
         url: item.url,
+        capturedHour: item.capturedHour ?? null,
         order: idx,
       }));
 
@@ -369,6 +406,8 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
         volumeDiscountEnabled,
         volumeDiscountMinPhotos: Math.max(1, Number(volumeDiscountMinPhotos) || 5),
         volumeDiscountPercent: Math.min(90, Math.max(1, Number(volumeDiscountPercent) || 15)),
+        timeFilterEnabled,
+        expiresAt: expiresAt.trim() ? expiresAt.trim() : null,
         isActive,
         watermarkText: STUDIO_CONFIG.watermark,
         coverImage: finalCover,
@@ -421,7 +460,6 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
     }
   };
 
-  // Actualiza localmente el pedido y los ingresos sin recargar ni saltar el scroll
   const applyOrderUpdateLocally = (updatedOrder) => {
     setAnalyticsData((prev) => {
       if (!prev) return prev;
@@ -1309,6 +1347,62 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                 )}
               </div>
 
+              {/* OPCIONES MODULARES: Filtro horario EXIF + Fecha límite de galería */}
+              <div className="bg-neutral-50 p-3.5 rounded-xl border border-neutral-200 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      Filtro por horario / tandas (Opcional)
+                    </p>
+                    <p className="text-[11px] text-neutral-500">
+                      Permite filtrar fotos por Mañana / Tarde / Noche usando la hora original de la cámara
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTimeFilterEnabled(!timeFilterEnabled)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition shrink-0 ${
+                      timeFilterEnabled
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-neutral-200 text-neutral-700'
+                    }`}
+                  >
+                    {timeFilterEnabled ? 'Activado' : 'Desactivado'}
+                  </button>
+                </div>
+
+                <div className="pt-2.5 border-t border-neutral-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
+                      <CalendarClock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      Fecha límite de galería (Opcional)
+                    </p>
+                    <p className="text-[11px] text-neutral-500">
+                      Si defines una fecha, mostrará aviso y se ocultará al vencer
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <input
+                      type="date"
+                      value={expiresAt}
+                      onChange={(e) => setExpiresAt(e.target.value)}
+                      className="px-3 py-1.5 rounded-xl border border-neutral-300 bg-white text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
+                    />
+                    {expiresAt && (
+                      <button
+                        type="button"
+                        onClick={() => setExpiresAt('')}
+                        title="Quitar fecha límite"
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between gap-2 bg-neutral-50 px-4 py-3 rounded-xl border border-neutral-200">
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-neutral-800">Estado en la página principal</p>
@@ -1335,7 +1429,7 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                   Subir todas las fotos en lote desde tu dispositivo
                 </p>
                 <p className="text-[11px] text-neutral-500 mt-0.5 mb-3">
-                  Conserva automáticamente el nombre original de cada foto (ej. DSC_0124)
+                  Conserva el nombre original (ej. DSC_0124) y detecta la hora EXIF automáticamente
                 </p>
 
                 <label
@@ -1389,9 +1483,16 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                             alt={item.code}
                             className="w-8 h-8 rounded object-cover shrink-0"
                           />
-                          <span className="font-mono font-semibold text-neutral-700 truncate flex-1">
-                            {item.code}
-                          </span>
+                          <div className="min-w-0 flex-1">
+                            <span className="font-mono font-semibold text-neutral-700 truncate block">
+                              {item.code}
+                            </span>
+                            {item.capturedHour !== null && item.capturedHour !== undefined && (
+                              <span className="text-[10px] text-neutral-400">
+                                {String(item.capturedHour).padStart(2, '0')}:00h
+                              </span>
+                            )}
+                          </div>
                           <button
                             type="button"
                             onClick={() => handleRemoveSinglePhoto(item.url)}
@@ -1613,6 +1714,16 @@ export default function AdminPanel({ events, onEventsUpdated, onClose }) {
                             {ev.volumeDiscountEnabled && (
                               <span className="text-emerald-700 font-semibold ml-1">
                                 • -{ev.volumeDiscountPercent}% ({ev.volumeDiscountMinPhotos}+)
+                              </span>
+                            )}
+                            {ev.timeFilterEnabled && (
+                              <span className="text-amber-700 font-semibold ml-1">
+                                • Tandas
+                              </span>
+                            )}
+                            {ev.expiresAt && (
+                              <span className="text-neutral-600 font-semibold ml-1">
+                                • Vence: {ev.expiresAt}
                               </span>
                             )}
                           </p>
